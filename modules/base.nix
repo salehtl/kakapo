@@ -46,7 +46,7 @@
     enable = true;
     allowReboot = false;
     dates = "04:00";
-    flake = "/etc/nixos#kakapo";
+    flake = "github:salehtl/kakapo#${config.networking.hostName}";
     flags = [ "-L" ];
   };
 }

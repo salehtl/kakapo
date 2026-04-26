@@ -5,6 +5,7 @@
     ../../modules/base.nix
     ../../modules/server.nix
     ../../modules/caddy.nix
+    ../../modules/sops.nix
   ];
 
   networking.hostName = "kakapo";

@@ -7,6 +7,10 @@
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -14,6 +18,7 @@
       self,
       nixpkgs,
       treefmt-nix,
+      sops-nix,
       ...
     }:
     let
@@ -27,7 +32,10 @@
     {
       nixosConfigurations.kakapo = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
-        modules = [ ./hosts/kakapo ];
+        modules = [
+          ./hosts/kakapo
+          sops-nix.nixosModules.sops
+        ];
       };
 
       formatter = forAllSystems (system: (treefmtFor system).config.build.wrapper);

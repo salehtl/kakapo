@@ -1,0 +1,10 @@
+keys:
+  - &mac age1r8cv2p7ftwlvfhm8lh25ej9ddtpmmkca0fnhszl4v4ggeuelz5qqeheus9
+  - &kakapo age1x7456cku84f27pja0jfveyvydra4vjhnwx0fluphqh2se26z3grsh4jauw
+
+creation_rules:
+  - path_regex: ^secrets/[^/]+\.yaml$
+    key_groups:
+      - age:
+          - *mac
+          - *kakapo

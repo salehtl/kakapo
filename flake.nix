@@ -3,14 +3,37 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
-  };
-
-  outputs = { nixpkgs, ... }: {
-    nixosConfigurations.kakapo = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules = [
-        ./hosts/kakapo
-      ];
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
+
+  outputs =
+    {
+      self,
+      nixpkgs,
+      treefmt-nix,
+      ...
+    }:
+    let
+      systems = [
+        "x86_64-linux"
+        "aarch64-darwin"
+      ];
+      forAllSystems = f: nixpkgs.lib.genAttrs systems f;
+      treefmtFor = system: treefmt-nix.lib.evalModule nixpkgs.legacyPackages.${system} ./treefmt.nix;
+    in
+    {
+      nixosConfigurations.kakapo = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [ ./hosts/kakapo ];
+      };
+
+      formatter = forAllSystems (system: (treefmtFor system).config.build.wrapper);
+
+      checks = forAllSystems (system: {
+        formatting = (treefmtFor system).config.build.check self;
+      });
+    };
 }

@@ -1,4 +1,9 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   mkRP = sub: port: {
     "${sub}.salehtl.com".extraConfig = ''

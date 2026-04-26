@@ -1,4 +1,4 @@
-{ ... }:
+{ config, ... }:
 {
   imports = [
     ./hardware.nix
@@ -37,4 +37,19 @@
   ];
 
   system.stateVersion = "25.11";
+
+  assertions = [
+    {
+      assertion = config.networking.hostName == "kakapo";
+      message = "networking.hostName must be 'kakapo' — system.autoUpgrade pulls github:salehtl/kakapo#\${hostname}, so renaming the host silently breaks nightly upgrades.";
+    }
+    {
+      assertion = (builtins.length config.users.users.saleh.openssh.authorizedKeys.keys) > 0;
+      message = "users.users.saleh.openssh.authorizedKeys.keys is empty — SSH is key-only with no password auth, so this would lock you out of the host permanently.";
+    }
+    {
+      assertion = config.networking.firewall.enable;
+      message = "networking.firewall.enable must be true — kakapo exposes ports 22/80/443 and disabling the firewall would silently expose every other listening service.";
+    }
+  ];
 }

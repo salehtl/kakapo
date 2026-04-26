@@ -13,6 +13,7 @@
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
+  users.mutableUsers = false;
   users.users.saleh = {
     isNormalUser = true;
     extraGroups = [
@@ -24,6 +25,8 @@
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAzToDCcubUsNikrT0cb6spONIcz/UUU0hGb93COQldz salehtl@icloud.com"
     ];
   };
+
+  security.sudo.wheelNeedsPassword = false;
 
   virtualisation.docker.enable = true;
 

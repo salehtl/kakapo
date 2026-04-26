@@ -35,6 +35,7 @@ Composition is layered; each layer only knows about the one below it:
 - `hosts/kakapo/hardware.nix` → disks (UUID-pinned ext4 root + vfat /boot + /mnt/media), kernel modules (`kvm-amd`, `igb` NIC), AMD microcode. This is the file to touch for storage/hardware changes.
 - `modules/base.nix` → **shared baseline** suitable for any host: flakes + weekly GC (`--delete-older-than 30d`), `Asia/Dubai` timezone, en_US.UTF-8, a small CLI package set, hardened OpenSSH (no root, no password), firewall on, auto-upgrade.
 - `modules/server.nix` → **headless-server overrides**: disables fontconfig, blocks suspend/hibernate, forces `logind` to ignore lid switches, pins CPU governor to `performance`, disables emergency mode.
+- `modules/caddy.nix` → **public reverse proxy** for `*.salehtl.com`. Defines a `mkRP sub port` helper and an empty `virtualHosts` merge list. New public services are exposed by adding `(mkRP "<sub>" <port>)` entries — name subdomains by **function**, not software (`tv` not `jellyfin`, `vault` not `vaultwarden`). ACME email is `salehtl@icloud.com`; ports 80/443 must stay open in the host firewall.
 
 When adding a new host, create `hosts/<name>/{default.nix,hardware.nix}`, add a `nixosConfigurations.<name>` entry in `flake.nix`, and reuse `modules/base.nix` (+ `server.nix` if headless). Keep host-specific state (hostname, users, ports, services) in the host's `default.nix`; promote anything that would apply to multiple hosts into `modules/`.
 

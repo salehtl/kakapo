@@ -4,8 +4,8 @@
     ./hardware.nix
     ../../modules/base.nix
     ../../modules/server.nix
-    ../../modules/caddy.nix
     ../../modules/sops.nix
+    ../../modules/services/cloudflared.nix
   ];
 
   networking.hostName = "kakapo";
@@ -31,11 +31,7 @@
 
   virtualisation.docker.enable = true;
 
-  networking.firewall.allowedTCPPorts = [
-    22
-    80
-    443
-  ];
+  networking.firewall.allowedTCPPorts = [ 22 ];
 
   system.stateVersion = "25.11";
 
@@ -50,7 +46,7 @@
     }
     {
       assertion = config.networking.firewall.enable;
-      message = "networking.firewall.enable must be true — kakapo exposes ports 22/80/443 and disabling the firewall would silently expose every other listening service.";
+      message = "networking.firewall.enable must be true — kakapo exposes port 22 and routes app traffic via Cloudflare Tunnel; disabling the firewall would silently expose every other listening service.";
     }
   ];
 }

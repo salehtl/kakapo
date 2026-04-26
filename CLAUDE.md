@@ -50,6 +50,55 @@ Composition is layered; each layer only knows about the one below it:
 
 When adding a new host, create `hosts/<name>/{default.nix,hardware.nix}`, add a `nixosConfigurations.<name>` entry in `flake.nix`, and reuse `modules/base.nix` (+ `server.nix` if headless). Keep host-specific state (hostname, users, ports, services) in the host's `default.nix`; promote anything that would apply to multiple hosts into `modules/`.
 
+## Operational recipes
+
+### Force kakapo to upgrade now (instead of waiting for 04:00)
+
+```sh
+ssh saleh@<kakapo> 'sudo nixos-rebuild switch --flake github:salehtl/kakapo#kakapo --refresh'
+```
+
+`--refresh` bypasses the flake-eval cache so the latest master is fetched. To verify a feature branch *before* merging, point at it directly: `--flake github:salehtl/kakapo/<branch>#kakapo`. Use `nixos-rebuild test` instead of `switch` to activate without registering as the default boot — handy for verification, reverts on reboot.
+
+### Confirm what's actually running
+
+```sh
+sudo nixos-rebuild list-generations | tail -5    # current generation + build date
+readlink /run/current-system                     # toplevel store path
+nix store diff-closures /run/booted-system /run/current-system   # what changed since last boot
+```
+
+The "Configuration Revision" column is empty until `system.configurationRevision` is wired into the flake — pending follow-up. Until then, verify the active config by checking expected services (`systemctl status cloudflared`) or firewall state (`sudo iptables -L INPUT -n | grep dpt`).
+
+### Edit secrets
+
+```sh
+sops secrets/kakapo.yaml         # opens $EDITOR with decrypted view; auto-encrypts on save
+sops -d secrets/kakapo.yaml      # decrypt to stdout (one-off inspect)
+```
+
+On **macOS**, sops looks for the age key at `~/Library/Application Support/sops/age/keys.txt` by default, but ours lives at `~/.config/sops/age/keys.txt`. Set this in `~/.zshrc`:
+
+```sh
+export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt"
+```
+
+### Add a new secret
+
+1. `sops secrets/kakapo.yaml` and add an entry under a service-namespaced path (e.g. `vaultwarden.admin_token`).
+2. In `modules/sops.nix`, declare it with `restartUnits = [ "<service>.service" ]` so the consuming service restarts on rotation.
+3. Reference its decrypted path via `config.sops.secrets."<service>/<name>".path` (resolves to `/run/secrets/<service>/<name>` at runtime). Prefer systemd `LoadCredential = "<name>:${config.sops.secrets."...".path}"` over passing the path directly to a service — keeps the secret out of process arglists.
+
+### Add a new self-hosted app
+
+1. Create `modules/services/<app>.nix` enabling the upstream NixOS service for that app, **pinned to listen on `127.0.0.1:<port>`** (never `0.0.0.0` — public ingress is via the tunnel, not the firewall).
+2. Wire any secrets it needs through sops (see above).
+3. Import the module from `hosts/kakapo/default.nix`.
+4. Declare any persistent state under `/var/lib/<app>` and note its path in the module's comment header — useful when storage layout changes later.
+5. Push to a feature branch, verify with `nixos-rebuild test` from the branch, merge.
+6. In the **Cloudflare Zero Trust dashboard** (Networks → Tunnels → kakapo's tunnel → Public Hostnames): add `<sub>.salehtl.com` → `http://localhost:<port>`. Subdomains follow the **function-not-software** convention (`tv` not `jellyfin`, `vault` not `vaultwarden`).
+7. **Add a Cloudflare Access policy** for any app exposing private data — anything on the tunnel is publicly reachable unless gated by Access.
+
 ## Conventions worth preserving
 
 - SSH is key-only; do not re-enable password auth or root login.

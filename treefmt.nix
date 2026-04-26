@@ -8,6 +8,4 @@
   };
   programs.deadnix.enable = true;
   programs.statix.enable = true;
-
-  settings.formatter.deadnix.excludes = [ "modules/caddy.nix" ];
 }

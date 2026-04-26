@@ -5,6 +5,7 @@ _: {
 
     secrets."cloudflared/token" = {
       key = "cloudflared/token";
+      restartUnits = [ "cloudflared.service" ];
     };
   };
 }

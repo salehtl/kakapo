@@ -7,7 +7,7 @@
       recommendedProxySettings = false;
       recommendedOptimisation = true;
       virtualHosts = {
-        "git.works.ae" = {
+        "git.warshalabs.ae" = {
           locations."/" = {
             proxyPass = "http://127.0.0.1:3939";
           };
@@ -37,10 +37,10 @@
       database.type = "postgres";
       lfs.enable = true;
       settings = {
-        DEFAULT.APP_NAME = "git.works.ae";
+        DEFAULT.APP_NAME = "git.warshalabs.ae";
         server = {
-          DOMAIN = "git.alq.ae";
-          ROOT_URL = "https://git.works.ae/";
+          DOMAIN = "git.warshalabs.ae";
+          ROOT_URL = "https://git.warshalabs.ae/";
           HTTP_PORT = 3939;
           SSH_PORT = 2222;
           START_SSH_SERVER = true;
@@ -60,7 +60,7 @@
           SHOW_FOOTER_VERSION = false;
         };
         "ui.meta" = {
-          AUTHOR = "git.works.ae";
+          AUTHOR = "git.warshalabs.ae";
           DESCRIPTION = "A private software forge";
         };
       };

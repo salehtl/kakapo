@@ -4,6 +4,7 @@
     ./hardware.nix
     ../../modules/base.nix
     ../../modules/server.nix
+    ../../modules/dev.nix
     ../../modules/sops.nix
     ../../modules/services/cloudflared.nix
   ];

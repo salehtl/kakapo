@@ -48,9 +48,13 @@
 
           LANDING_PAGE = "explore";
         };
-        service.DISABLE_REGISTRATION = true;
+        service = {
+          DISABLE_REGISTRATION = true;
+          REQUIRE_SIGNIN_VIEW = true;
+        };
         repository = {
           DEFAULT_PRIVATE = "private";
+          FORCE_PRIVATE = true;
           ENABLE_PUSH_CREATE_USER = true;
           ENABLE_PUSH_CREATE_ORG = true;
         };

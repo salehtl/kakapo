@@ -42,11 +42,13 @@
           DOMAIN = "git.warshalabs.ae";
           ROOT_URL = "https://git.warshalabs.ae/";
           HTTP_PORT = 3939;
-          SSH_PORT = 2222;
+          SSH_LISTEN_PORT = 2222;
+          SSH_PORT = 22;
           START_SSH_SERVER = true;
 
           LANDING_PAGE = "explore";
         };
+        service.DISABLE_REGISTRATION = true;
         repository = {
           DEFAULT_PRIVATE = "private";
           ENABLE_PUSH_CREATE_USER = true;

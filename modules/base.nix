@@ -46,6 +46,8 @@
     };
   };
 
+  services.tailscale.enable = true;
+
   networking.firewall.enable = true;
 
   system.autoUpgrade = {

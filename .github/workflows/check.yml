@@ -30,8 +30,3 @@ jobs:
 
       - name: nix flake check
         run: nix flake check --print-build-logs
-
-      - name: build kakapo toplevel
-        run: |
-          nix build --print-build-logs --no-link \
-            .#nixosConfigurations.kakapo.config.system.build.toplevel

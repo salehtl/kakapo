@@ -6,7 +6,6 @@
       recommendedTlsSettings = true;
       recommendedProxySettings = false;
       recommendedOptimisation = true;
-      appendHttpConfig = proxyHeaders;
       virtualHosts = {
         "git.works.ae" = {
           locations."/" = {

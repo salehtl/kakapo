@@ -3,7 +3,13 @@ name: check
 on:
   push:
     branches: [master]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
   pull_request:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
 
 concurrency:
   group: check-${{ github.ref }}
@@ -24,6 +30,9 @@ jobs:
         with:
           extra-conf: |
             experimental-features = nix-command flakes
+
+      - name: Enable Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
 
       - name: Enable FlakeHub Cache
         uses: DeterminateSystems/flakehub-cache-action@main

@@ -7,7 +7,7 @@
       recommendedProxySettings = false;
       recommendedOptimisation = true;
       virtualHosts = {
-        "git.warshalabs.ae" = {
+        "git.sirdab.ae" = {
           locations."/" = {
             proxyPass = "http://127.0.0.1:3939";
           };
@@ -37,10 +37,10 @@
       database.type = "postgres";
       lfs.enable = true;
       settings = {
-        DEFAULT.APP_NAME = "git.warshalabs.ae";
+        DEFAULT.APP_NAME = "git.sirdab.ae";
         server = {
-          DOMAIN = "git.warshalabs.ae";
-          ROOT_URL = "https://git.warshalabs.ae/";
+          DOMAIN = "git.sirdab.ae";
+          ROOT_URL = "https://git.sirdab.ae/";
           HTTP_PORT = 3939;
           SSH_LISTEN_PORT = 2222;
           SSH_PORT = 22;
@@ -66,7 +66,7 @@
           SHOW_FOOTER_VERSION = false;
         };
         "ui.meta" = {
-          AUTHOR = "git.warshalabs.ae";
+          AUTHOR = "git.sirdab.ae";
           DESCRIPTION = "A private software forge";
         };
       };

@@ -4,7 +4,7 @@
     services.nginx = {
       enable = true;
       recommendedTlsSettings = true;
-      recommendedProxySettings = false;
+      recommendedProxySettings = true;
       recommendedOptimisation = true;
       virtualHosts = {
         "git.sirdab.ae" = {

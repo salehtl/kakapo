@@ -2,10 +2,10 @@
 {
   fonts.fontconfig.enable = lib.mkDefault false;
 
-  systemd.sleep.extraConfig = ''
-    AllowSuspend=no
-    AllowHibernation=no
-  '';
+  systemd.sleep.settings.Sleep = {
+    AllowSuspend = "no";
+    AllowHibernation = "no";
+  };
 
   services.logind.lidSwitch = lib.mkForce "ignore";
   services.logind.lidSwitchExternalPower = lib.mkForce "ignore";

@@ -45,6 +45,22 @@
 
   swapDevices = [ ];
 
+  # GeForce RTX 2060 (TU106, 6 GB): NVIDIA's driver instead of nouveau, for
+  # CUDA and NVENC. Turing works with the open kernel modules. videoDrivers
+  # only selects the driver; X is not enabled.
+  services.xserver.videoDrivers = [ "nvidia" ];
+  hardware.graphics.enable = true;
+  hardware.nvidia = {
+    open = true;
+    package = config.boot.kernelPackages.nvidiaPackages.stable;
+    # Headless: keep the GPU initialised so each CUDA program starts fast.
+    nvidiaPersistenced = true;
+    # No desktop: skip the GTK settings app and the VA-API plugin, which pull
+    # in GTK and GStreamer. NVENC through ffmpeg doesn't need either.
+    nvidiaSettings = false;
+    videoAcceleration = false;
+  };
+
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
   hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
 }

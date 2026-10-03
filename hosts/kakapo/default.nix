@@ -50,8 +50,15 @@
 
   virtualisation.docker.enable = true;
 
-  # claude-code is unfree; allow it by name rather than all unfree packages.
-  nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "claude-code" ];
+  # Allow unfree packages by name rather than all unfree packages.
+  nixpkgs.config.allowUnfreePredicate =
+    pkg:
+    builtins.elem (lib.getName pkg) [
+      "claude-code"
+      "nvidia-x11"
+      "nvidia-settings"
+      "nvidia-persistenced"
+    ];
   environment.systemPackages = [ pkgs.claude-code ];
 
   networking.firewall.allowedTCPPorts = [ 22 ];

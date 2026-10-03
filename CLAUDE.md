@@ -39,15 +39,16 @@ CI (`.github/workflows/check.yml`) runs `nix flake check` on every push to maste
 
 Composition is layered; each layer only knows about the one below it:
 
-- `flake.nix` → wires `nixpkgs` (channel `nixos-25.05`) and `treefmt-nix` into `nixosConfigurations.kakapo`, plus exposes `formatter` + `checks.formatting` per system.
+- `flake.nix` → wires `nixpkgs` (channel `nixos-26.05`), `sops-nix`, `ledger` (`github:salehtl/ledger`, for its NixOS module) and `treefmt-nix` into `nixosConfigurations.kakapo`, plus exposes `formatter` + `checks.formatting` per system.
 - `treefmt.nix` → formatter config: `nixfmt-rfc-style` + `deadnix` + `statix`.
 - `hosts/kakapo/default.nix` → **host identity + invariants**: hostname, bootloader (systemd-boot + EFI), declared users (`saleh`, `humaid`) + their SSH keys, `users.mutableUsers = false`, `security.sudo.wheelNeedsPassword = false`, docker, firewall open only on port 22, and three eval-time `assertions` guarding hostname/`saleh`-SSH-key-presence/firewall. Imports `hardware.nix` + the shared modules.
 - `hosts/kakapo/hardware.nix` → disks (UUID-pinned ext4 root + vfat /boot + /mnt/media), kernel modules (`kvm-amd`, `igb` NIC), AMD microcode. This is the file to touch for storage/hardware changes.
 - `modules/base.nix` → **shared baseline** suitable for any host: flakes + weekly GC (`--delete-older-than 30d`), `Asia/Dubai` timezone, en_US.UTF-8, a small CLI package set, hardened OpenSSH (no root, no password), firewall on, auto-upgrade.
 - `modules/server.nix` → **headless-server overrides**: disables fontconfig, blocks suspend/hibernate, forces `logind` to ignore lid switches, pins CPU governor to `performance`, disables emergency mode.
 - `modules/dev.nix` → **forge stack** for `git.sirdab.ae`: Forgejo (Postgres-backed, LFS on, registration disabled, repos forced private, SSH on port 2222 advertised as 22, HTTP on 3939), nginx as a TLS-recommended reverse proxy on the public hostname with a 50 GB `client_max_body_size` for LFS pushes, and Postgres 17 with `postgis` + `pgvector`. Note: nginx listens on 80 but the firewall doesn't open it — public traffic enters via the Cloudflare Tunnel routing `git.sirdab.ae` → `http://localhost:80`, where nginx then proxies to Forgejo. This module is the **exception** to the "services bind to localhost" convention because nginx is the in-host proxy in front of Forgejo.
-- `modules/sops.nix` → **secrets**: declares `sops-nix` config, derives the host's age decryption key from `/etc/ssh/ssh_host_ed25519_key`, and registers each secret declared in `secrets/kakapo.yaml` to be exposed at `/run/secrets/<name>` at boot.
+- `modules/sops.nix` → **secrets**: declares `sops-nix` config, derives the host's age decryption key from `/etc/ssh/ssh_host_ed25519_key`, and registers each secret declared in `secrets/kakapo.yaml` (and `secrets/ledger.yaml`, ledger's env file) to be exposed at `/run/secrets/<name>` at boot.
 - `modules/services/cloudflared.nix` → **public ingress**: `cloudflared` systemd unit (DynamicUser, hardened) running in token-based mode. Token is read from `/run/secrets/cloudflared/token` via systemd `LoadCredential`. Ingress (subdomain → local port) is configured in the Cloudflare Zero Trust dashboard, not in the flake. Public traffic from the internet enters via outbound tunnel — no inbound ports needed beyond SSH.
+- `modules/services/ledger.nix` → **ledger 1.0**, Saleh's budgeting PWA (moved from dinosaur on 2026-10-03). The module itself is `services.ledger` from the `ledger` flake input (`nix/module.nix` there). Listens on `127.0.0.1:8090`; state and real financial data in `/var/lib/ledger` (0700), with a copy in `/var/lib/ledger/backups` before each new build first runs. Secrets come from `/run/secrets/ledger/env`. `requireDatabase` keeps the unit down until `ledger.db` exists. This module is the **exception** to the Cloudflare Tunnel convention: it is **tailnet only**, served at `https://kakapo.<tailnet>.ts.net/` by the `ledger-tailscale-serve` oneshot. Never add a public hostname or an Access policy for it; it holds financial data and is never public.
 
 When adding a new host, create `hosts/<name>/{default.nix,hardware.nix}`, add a `nixosConfigurations.<name>` entry in `flake.nix`, and reuse `modules/base.nix` (+ `server.nix` if headless). Keep host-specific state (hostname, users, ports, services) in the host's `default.nix`; promote anything that would apply to multiple hosts into `modules/`.
 
@@ -70,6 +71,23 @@ nix store diff-closures /run/booted-system /run/current-system   # what changed 
 ```
 
 The "Configuration Revision" column is empty until `system.configurationRevision` is wired into the flake — pending follow-up. Until then, verify the active config by checking expected services (`systemctl status cloudflared`) or firewall state (`sudo iptables -L INPUT -n | grep dpt`).
+
+### Deploy a new ledger version
+
+kakapo runs the ledger commit pinned in `flake.lock`. Before bumping, make sure that commit's `internal/web/dist` was rebuilt and committed (the Nix build embeds it and never runs Node).
+
+```sh
+nix flake update ledger                      # pin salehtl/ledger main
+nix flake check                              # same as CI
+git commit -am "ledger: bump to <short rev>" && git push   # applied at 04:00
+```
+
+To apply now, use the force-upgrade recipe above. The unit copies `ledger.db` to `/var/lib/ledger/backups/before-<build>.db` before a new build first opens it, so there is no manual backup step. Check that the new build is the one running:
+
+```sh
+readlink /proc/$(systemctl show -p MainPID --value ledger)/exe   # ends in ledger-1.0-<rev>/bin/ledger
+curl -s http://127.0.0.1:8090/api/health
+```
 
 ### Edit secrets
 
@@ -104,7 +122,7 @@ export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt"
 
 - SSH is key-only; do not re-enable password auth or root login.
 - `system.stateVersion` is set per-host and must not be bumped casually — it pins stateful-service defaults to the install-time NixOS release.
-- Firewall is enabled by default and only port 22 is open. New self-hosted services should be reached **via the Cloudflare Tunnel**, not via newly-opened public ports — declare the service to listen on `localhost:<port>` and add a public-hostname route in the Cloudflare Zero Trust dashboard pointing at that port. Subdomains follow the `function-not-software` convention (`tv.salehtl.com` not `jellyfin.salehtl.com`).
+- Firewall is enabled by default and only port 22 is open. New self-hosted services should be reached **via the Cloudflare Tunnel**, not via newly-opened public ports — declare the service to listen on `localhost:<port>` and add a public-hostname route in the Cloudflare Zero Trust dashboard pointing at that port. The one exception is ledger, which is tailnet-only (see `modules/services/ledger.nix`). Subdomains follow the `function-not-software` convention (`tv.salehtl.com` not `jellyfin.salehtl.com`).
 - Secrets live in `secrets/kakapo.yaml` (encrypted via sops). Edit with `sops secrets/kakapo.yaml`; declare each new secret in `modules/sops.nix` with `restartUnits` pointing at any service that consumes it.
 - `users.mutableUsers = false` — never `useradd`/`passwd` on the host; the flake is the only path. `wheelNeedsPassword = false` because `saleh` has no declared password (SSH key is the sole auth factor).
 - The three host-level `assertions` are guardrails, not ceremony. Don't weaken them — if one fires, the underlying config is wrong, not the assertion.

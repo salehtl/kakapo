@@ -7,6 +7,7 @@
     ../../modules/dev.nix
     ../../modules/sops.nix
     ../../modules/services/cloudflared.nix
+    ../../modules/services/ledger.nix
   ];
 
   networking.hostName = "kakapo";

@@ -11,6 +11,10 @@
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    ledger = {
+      url = "github:salehtl/ledger";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -19,6 +23,7 @@
       nixpkgs,
       treefmt-nix,
       sops-nix,
+      ledger,
       ...
     }:
     let
@@ -35,6 +40,7 @@
         modules = [
           ./hosts/kakapo
           sops-nix.nixosModules.sops
+          ledger.nixosModules.default
         ];
       };
 

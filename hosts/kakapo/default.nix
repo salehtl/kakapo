@@ -9,9 +9,7 @@
     ./hardware.nix
     ../../modules/base.nix
     ../../modules/server.nix
-    ../../modules/dev.nix
     ../../modules/sops.nix
-    ../../modules/services/cloudflared.nix
     ../../modules/services/ledger.nix
   ];
 
@@ -71,7 +69,7 @@
     }
     {
       assertion = config.networking.firewall.enable;
-      message = "networking.firewall.enable must be true — kakapo exposes port 22 and routes app traffic via Cloudflare Tunnel; disabling the firewall would silently expose every other listening service.";
+      message = "networking.firewall.enable must be true — kakapo exposes port 22 and serves apps over the tailnet only; disabling the firewall would silently expose every other listening service.";
     }
   ];
 }

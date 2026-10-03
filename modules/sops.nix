@@ -1,15 +1,11 @@
 _: {
   sops = {
-    defaultSopsFile = ../secrets/kakapo.yaml;
     age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
 
-    secrets."cloudflared/token" = {
-      key = "cloudflared/token";
-      restartUnits = [ "cloudflared.service" ];
-    };
+    # One sops file per service under secrets/. There is no defaultSopsFile,
+    # so every secret names its own sopsFile.
 
-    # ledger's LEDGER_* environment, one multi-line value. A separate file:
-    # it was made on dinosaur from the public keys alone.
+    # ledger's LEDGER_* environment, one multi-line value.
     secrets."ledger/env" = {
       sopsFile = ../secrets/ledger.yaml;
       key = "ledger/env";

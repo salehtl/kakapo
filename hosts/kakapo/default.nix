@@ -60,7 +60,10 @@
       "nvidia-settings"
       "nvidia-persistenced"
     ];
-  environment.systemPackages = [ pkgs.claude-code ];
+  environment.systemPackages = [
+    pkgs.claude-code
+    pkgs.herdr
+  ];
 
   networking.firewall.allowedTCPPorts = [ 22 ];
 

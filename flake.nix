@@ -15,6 +15,10 @@
       url = "github:salehtl/ledger";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    herdr = {
+      url = "github:herdrdev/herdr/v0.9.3";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -24,6 +28,7 @@
       treefmt-nix,
       sops-nix,
       ledger,
+      herdr,
       ...
     }:
     let
@@ -41,6 +46,11 @@
           ./hosts/kakapo
           sops-nix.nixosModules.sops
           ledger.nixosModules.default
+          {
+            nixpkgs.overlays = [
+              (_final: _prev: { herdr = herdr.packages.x86_64-linux.default; })
+            ];
+          }
         ];
       };
 

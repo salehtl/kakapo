@@ -11,6 +11,7 @@
     ../../modules/server.nix
     ../../modules/sops.nix
     ../../modules/services/ledger.nix
+    ../../modules/services/monitoring.nix
   ];
 
   networking.hostName = "kakapo";

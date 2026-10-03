@@ -7,8 +7,10 @@
     AllowHibernation = "no";
   };
 
-  services.logind.lidSwitch = lib.mkForce "ignore";
-  services.logind.lidSwitchExternalPower = lib.mkForce "ignore";
+  services.logind.settings.Login = {
+    HandleLidSwitch = lib.mkForce "ignore";
+    HandleLidSwitchExternalPower = lib.mkForce "ignore";
+  };
 
   powerManagement.cpuFreqGovernor = "performance";
 

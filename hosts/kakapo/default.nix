@@ -1,4 +1,9 @@
-{ config, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 {
   imports = [
     ./hardware.nix
@@ -46,6 +51,10 @@
   security.sudo.wheelNeedsPassword = false;
 
   virtualisation.docker.enable = true;
+
+  # claude-code is unfree; allow it by name rather than all unfree packages.
+  nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "claude-code" ];
+  environment.systemPackages = [ pkgs.claude-code ];
 
   networking.firewall.allowedTCPPorts = [ 22 ];
 

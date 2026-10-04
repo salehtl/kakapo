@@ -47,6 +47,23 @@ Composition is layered; each layer only knows about the one below it:
 - `modules/server.nix` → **headless-server overrides**: disables fontconfig, blocks suspend/hibernate, forces `logind` to ignore lid switches, pins CPU governor to `performance`, disables emergency mode.
 - `modules/sops.nix` → **secrets**: declares `sops-nix` config, derives the host's age decryption key from `/etc/ssh/ssh_host_ed25519_key`, and registers each declared secret to be exposed at `/run/secrets/<name>` at boot. One sops file per service under `secrets/` (today only `secrets/ledger.yaml`); there is no `defaultSopsFile`, so each secret sets its own `sopsFile`.
 - `modules/services/adguard.nix` → **AdGuard Home**, network-wide DNS filtering with HaGeZi's lists (Multi NORMAL + TIF Medium + Badware Hoster + Pop-Up Ads, plus the Referral allowlist), added 2026-10-04 to replace the Home Assistant resolver at `10.0.0.10` that stopped answering on `:53`. Web UI on `127.0.0.1:3001` (**not** 3000 — Grafana has it), served tailnet-only at `https://kakapo.<tailnet>.ts.net:10000/`. **This is the one service that opens a port other than 22**, because `tailscale serve` is an HTTPS proxy and cannot carry UDP: DNS binds `0.0.0.0:53` with firewall rules scoped to `tailscale0` and `enp4s0` via `networking.firewall.interfaces`, so the global `allowedTCPPorts` stays `[ 22 ]`. Three layers keep it from being an open resolver (interface-scoped firewall, `dns.allowed_clients` CIDRs, `ratelimit`) and three `assertions` guard them. Upstreams are Cloudflare + Quad9 **DoH** so resolution never loops back through MagicDNS, with split-DNS carve-outs for `*.ts.net`, `routerlocal` and the LAN reverse zone. No `users` block is declared — a bcrypt hash would be world-readable in the Nix store, so the admin password is set once in the UI and persists via `mutableSettings`. An assertion ties it to the `1.1.1.2/1.0.0.2` pin in `hosts/kakapo/default.nix`, because **kakapo must never resolve through its own AdGuard** — once LAN DHCP hands out this host as the resolver, a dead AdGuard would silently break the 04:00 upgrade.
+
+  **Out-of-band dependency, recorded here because it is invisible from the flake:**
+  on 2026-10-04 the UniFi "Default" LAN (`10.0.0.0/24`) had its DHCP-advertised
+  DNS pointed at kakapo (`dhcpd_dns_1 = 10.0.0.215`, was `1.1.1.1`), and
+  kakapo's lease was converted to a fixed reservation at that address. So
+  **every device in the house now resolves through this service.** Removing
+  `modules/services/adguard.nix`, or letting `adguardhome.service` stay down,
+  takes the LAN's DNS with it. There is deliberately no secondary resolver in
+  DHCP — a non-filtering fallback would make filtering inconsistent, since
+  clients query whichever answers first. Recovery, in order of speed:
+  `systemctl restart adguardhome`, or set `dhcpd_dns_1` back to `1.1.1.1` in
+  the UniFi UI (Settings → Networks → Default → DHCP Name Server). kakapo
+  itself is unaffected either way: it resolves via the `1.1.1.2/1.0.0.2` pin,
+  never through its own AdGuard, so SSH and `nixos-rebuild` keep working.
+  Guest (`192.168.20.0/24`) and IoT (`192.168.30.0/24`) were left on Cloudflare
+  family DNS and are *not* filtered here — `dns.allowed_clients` would refuse
+  them anyway.
 - `modules/services/ledger.nix` → **ledger 1.0**, Saleh's budgeting PWA (moved from dinosaur on 2026-10-03). The module itself is `services.ledger` from the `ledger` flake input (`nix/module.nix` there). Listens on `127.0.0.1:8090`; state and real financial data in `/var/lib/ledger` (0700), with a copy in `/var/lib/ledger/backups` before each new build first runs. Secrets come from `/run/secrets/ledger/env`. `requireDatabase` keeps the unit down until `ledger.db` exists. It is **tailnet only**, served at `https://kakapo.<tailnet>.ts.net/` by the `ledger-tailscale-serve` oneshot. Never add a public hostname or an Access policy for it; it holds financial data and is never public.
 - `modules/services/monitoring.nix` → **health dashboard**: Prometheus (90 days) scraping `node` (with the systemd collector), `nvidia-gpu` and `smartctl` exporters, and Grafana with three pinned grafana.com dashboards (Node Exporter Full, Nvidia GPU Metrics, SMARTctl). Everything on `127.0.0.1`; Grafana is served on the tailnet at `https://kakapo.<tailnet>.ts.net:8443/` by `grafana-tailscale-serve`. No passwords: Grafana trusts the `Tailscale-User-Login` header from `tailscale serve` (`auth.proxy`), and the only user is `salehtl@github` (admin); sign-up is off, so anyone else gets 401. Grafana's `secret_key` is generated on the host in `/var/lib/grafana` on first start.
 

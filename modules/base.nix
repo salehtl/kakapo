@@ -50,7 +50,17 @@
     };
   };
 
-  services.tailscale.enable = true;
+  services.tailscale = {
+    enable = true;
+    # Tailscale SSH serves port 22 on the tailnet interface. Authentication is
+    # tailnet identity plus the tailnet SSH policy, not authorized_keys.
+    #
+    # sshd above stays enabled on purpose. It still serves the LAN, which is the
+    # recovery path when Tailscale or its control plane is unavailable, and
+    # humaid's node (anoa) is not a principal in the tailnet SSH policy, so
+    # Tailscale SSH alone would lock him out.
+    extraSetFlags = [ "--ssh" ];
+  };
 
   networking.firewall.enable = true;
 

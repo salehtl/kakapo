@@ -66,6 +66,10 @@
     pkgs.herdr
   ];
 
+  # Deliberately every interface, not just tailscale0. Tailscale is the sole
+  # remote-access path, so a LAN fallback is the recovery route when it is
+  # unavailable; this box sits on a trusted home LAN and SSH is key-only with
+  # a YubiKey, which bounds the exposure. Do not narrow this to the tailnet.
   networking.firewall.allowedTCPPorts = [ 22 ];
 
   system.stateVersion = "25.11";

@@ -1,0 +1,39 @@
+name: update-flake-lock
+
+# autoUpgrade only ever builds what flake.lock pins; it never moves the lock.
+# Without this, kakapo stays on one nixpkgs commit indefinitely and stops
+# receiving nixos-26.05 security backports.
+on:
+  schedule:
+    - cron: "0 2 * * 1" # Mondays 06:00 Asia/Dubai
+  workflow_dispatch:
+
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+
+      - name: Update flake.lock
+        uses: DeterminateSystems/update-flake-lock@main
+        with:
+          pr-title: "flake: weekly flake.lock bump"
+          pr-body: |
+            Automated weekly `nix flake update`.
+
+            Review the nixpkgs diff before merging: merging this to `master` is
+            a deploy, applied by `system.autoUpgrade` at 04:00 Asia/Dubai.
+          pr-labels: dependencies
+          # PRs opened with the default GITHUB_TOKEN do not trigger other
+          # workflows, so `check` would never run on them. Set a FLAKE_LOCK_TOKEN
+          # repo secret (a PAT with `repo` scope) to get CI on these PRs.
+          token: ${{ secrets.FLAKE_LOCK_TOKEN || secrets.GITHUB_TOKEN }}

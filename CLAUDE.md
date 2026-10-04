@@ -33,7 +33,7 @@ nix eval --raw .#nixosConfigurations.kakapo.config.system.build.toplevel.drvPath
 
 Note: `modules/base.nix` enables `system.autoUpgrade` pointing at `github:salehtl/kakapo#${config.networking.hostName}` at 04:00 daily (no auto-reboot). Whatever is on `master` at upgrade time is what the host runs — push with care.
 
-CI (`.github/workflows/check.yml`) runs `nix flake check` on every push to master and on PRs — this evaluates `nixosConfigurations.kakapo` and runs the formatter check, but does **not** build the toplevel derivation. CI is **advisory, not enforcing** — without GitHub branch protection requiring `check` to pass, `system.autoUpgrade` will pull master regardless of red checks. Treat a red CI run on master as an emergency: fix or revert before 04:00.
+CI (`.github/workflows/check.yml`) runs `nix flake lock --no-update-lock-file` and then `nix flake check` on every push to master and on PRs — this evaluates `nixosConfigurations.kakapo` and runs the formatter check, but does **not** build the toplevel derivation. CI is **advisory, not enforcing** — without GitHub branch protection requiring `check` to pass, `system.autoUpgrade` will pull master regardless of red checks. Treat a red CI run on master as an emergency: fix or revert before 04:00.
 
 ## Architecture
 
@@ -122,7 +122,13 @@ kakapo has no public ingress: Forgejo (`git.sirdab.ae`), nginx, Postgres and the
 
 - SSH is key-only; do not re-enable password auth or root login.
 - `system.stateVersion` is set per-host and must not be bumped casually — it pins stateful-service defaults to the install-time NixOS release.
-- Firewall is enabled by default and only port 22 is open. Self-hosted services listen on `localhost:<port>` and are reached **over the tailnet** via `tailscale serve` (see `modules/services/ledger.nix`), never via newly-opened public ports.
+- Firewall is enabled by default and only port 22 is open — but on *every*
+  interface, not just `tailscale0`. That is deliberate: Tailscale is the sole
+  remote-access path, so the LAN is the recovery route when it is down. Do not
+  narrow it to the tailnet.
+- Self-hosted services listen on `localhost:<port>` and are reached **over the
+  tailnet** via `tailscale serve` (see `modules/services/ledger.nix`), never via
+  newly-opened public ports.
 - Secrets live in `secrets/<service>.yaml` (encrypted via sops), one file per service. Edit with `sops secrets/<service>.yaml`; declare each new secret in `modules/sops.nix` with its `sopsFile` and `restartUnits` pointing at any service that consumes it.
 - `users.mutableUsers = false` — never `useradd`/`passwd` on the host; the flake is the only path. `wheelNeedsPassword = false` because `saleh` has no declared password (SSH key is the sole auth factor).
 - The three host-level `assertions` are guardrails, not ceremony. Don't weaken them — if one fires, the underlying config is wrong, not the assertion.

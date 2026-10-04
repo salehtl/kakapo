@@ -1,15 +1,12 @@
 name: check
 
+# No paths-ignore: if `check` is ever made a required status check, a skipped
+# run never reports success and docs-only PRs can never be merged. Running it
+# on every change is cheap because the Nix caches below do the heavy lifting.
 on:
   push:
     branches: [master]
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
   pull_request:
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
 
 concurrency:
   group: check-${{ github.ref }}
@@ -36,6 +33,14 @@ jobs:
 
       - name: Enable FlakeHub Cache
         uses: DeterminateSystems/flakehub-cache-action@main
+
+      # A lock that needs updating makes the nightly
+      # `nixos-rebuild switch --flake github:salehtl/kakapo#kakapo` fail: it
+      # cannot write a lock file for a remote flake. ae89d66 shipped exactly
+      # that and broke autoUpgrade silently from 2026-06-01 to 2026-10-03.
+      # This step is the cheapest possible guard against a repeat.
+      - name: flake.lock is in sync with flake.nix
+        run: nix flake lock --no-update-lock-file
 
       - name: nix flake check
         run: nix flake check --print-build-logs

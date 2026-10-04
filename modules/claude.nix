@@ -49,13 +49,23 @@ in
           sudo nixos-rebuild test --flake github:salehtl/kakapo/<branch>#${host} --refresh
 
     - Pushing to `master` is a deploy. Treat it as one.
+    - autoUpgrade only builds what `flake.lock` pins. It never moves the lock,
+      so nixpkgs stays frozen until someone runs `nix flake update` and pushes.
+    - It can fail every night with nothing to show for it. A `flake.lock` that
+      needed updating broke it from 2026-06-01 to 2026-10-03 — 250 failed runs,
+      no alert. Before assuming this host is current, check:
+
+          systemctl status nixos-upgrade.service
+          journalctl -u nixos-upgrade.service --since -7d
 
     ## Invariants — do not work around these
 
     - `users.mutableUsers = false`. Never `useradd`, `passwd`, or edit `/etc/passwd`.
     - SSH is key-only. Never enable password auth or root login.
-    - The firewall allows port 22 only. Services bind `127.0.0.1` and reach the
-      tailnet via `tailscale serve` — never by opening a port.
+    - Only port 22 is open. Services bind `127.0.0.1` and reach the tailnet via
+      `tailscale serve` — never by opening a port.
+    - Port 22 is open on **every** interface on purpose: it is the LAN fallback
+      for when Tailscale is unavailable. Do not narrow it to `tailscale0`.
     - Secrets are sops-encrypted under `secrets/`. Never commit plaintext.
     - The `assertions` in `hosts/${host}/default.nix` are guardrails, not ceremony.
     - Run `nix fmt` before committing; CI fails on unformatted Nix.

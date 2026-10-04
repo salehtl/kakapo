@@ -18,6 +18,29 @@
   networking.hostName = "kakapo";
   networking.networkmanager.enable = true;
 
+  # Resolve through Cloudflare's filtering resolvers, not through whatever DHCP
+  # hands out. The LAN resolver DHCP was advertising (10.0.0.10, a DNS add-on on
+  # the Home Assistant Pi) stopped answering on :53 on 2026-10-04 and took this
+  # host's name resolution with it — including the 04:00 autoUpgrade's ability
+  # to fetch the flake. A server's deploy path should not depend on an add-on
+  # running on an appliance.
+  #
+  # `dns = "none"` is the load-bearing half: `networking.nameservers` registers
+  # a resolvconf entry at metric 1, which only puts these servers *first* —
+  # NetworkManager still appends the DHCP one underneath. Telling NM to stay out
+  # of resolv.conf entirely is what actually removes 10.0.0.10.
+  #
+  # Tailscale is unaffected: tailscaled owns resolv.conf at runtime, keeps
+  # serving MagicDNS on 100.100.100.100, and takes these as its upstreams.
+  #
+  # IPv4 only on purpose — this host has no IPv6 default route, so v6 resolvers
+  # would be dead entries that cost a timeout each.
+  networking.networkmanager.dns = "none";
+  networking.nameservers = [
+    "1.1.1.2" # Cloudflare, malware-filtering
+    "1.0.0.2"
+  ];
+
   boot.loader.systemd-boot.enable = true;
   # Bounds /boot (vfat, 1 GiB): each distinct kernel+initrd pair costs ~41 MiB,
   # and a full /boot makes nixos-rebuild fail — silently, at 04:00.

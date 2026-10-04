@@ -11,7 +11,9 @@ on:
 jobs:
   lockfile:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
+      id-token: write
       contents: write
       pull-requests: write
     steps:
@@ -23,17 +25,48 @@ jobs:
           extra-conf: |
             experimental-features = nix-command flakes
 
-      - name: Update flake.lock
-        uses: DeterminateSystems/update-flake-lock@main
+      - name: Enable Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Enable FlakeHub Cache
+        uses: DeterminateSystems/flakehub-cache-action@main
+
+      - name: nix flake update
+        run: nix flake update
+
+      # GitHub will not run `check` on the pull request opened below: anything
+      # done with the default GITHUB_TOKEN does not trigger further workflows.
+      # Rather than store a PAT to work around that, the lock is validated here
+      # — in the same run that opens the PR — which needs no credential and
+      # proves more than `check` would: that the bumped lock still builds this
+      # host. An unvalidated lock is exactly what broke autoUpgrade silently
+      # from 2026-06-01 to 2026-10-03.
+      #
+      # These two steps are therefore the gate. If either fails, the job fails
+      # and no PR is opened, so a bad bump never reaches a mergeable state.
+      - name: nix flake check
+        run: nix flake check --print-build-logs
+
+      - name: kakapo builds on the new lock
+        run: |
+          nix build --print-build-logs \
+            .#nixosConfigurations.kakapo.config.system.build.toplevel
+
+      - name: Open pull request
+        uses: peter-evans/create-pull-request@v7
         with:
-          pr-title: "flake: weekly flake.lock bump"
-          pr-body: |
+          branch: flake-lock-bump
+          title: "flake: weekly flake.lock bump"
+          commit-message: "flake: weekly flake.lock bump"
+          labels: dependencies
+          body: |
             Automated weekly `nix flake update`.
+
+            Validated by the run that opened this PR: `nix flake check` passed
+            and `nixosConfigurations.kakapo` built to a `toplevel`. GitHub does
+            not run `check` on this PR — PRs opened with `GITHUB_TOKEN` do not
+            trigger workflows — so those steps, in the run linked above, are
+            the gate.
 
             Review the nixpkgs diff before merging: merging this to `master` is
             a deploy, applied by `system.autoUpgrade` at 04:00 Asia/Dubai.
-          pr-labels: dependencies
-          # PRs opened with the default GITHUB_TOKEN do not trigger other
-          # workflows, so `check` would never run on them. Set a FLAKE_LOCK_TOKEN
-          # repo secret (a PAT with `repo` scope) to get CI on these PRs.
-          token: ${{ secrets.FLAKE_LOCK_TOKEN || secrets.GITHUB_TOKEN }}

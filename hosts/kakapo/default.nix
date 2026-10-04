@@ -9,6 +9,7 @@
     ./hardware.nix
     ../../modules/base.nix
     ../../modules/server.nix
+    ../../modules/claude.nix
     ../../modules/sops.nix
     ../../modules/services/ledger.nix
     ../../modules/services/monitoring.nix

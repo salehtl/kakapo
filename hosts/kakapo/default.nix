@@ -11,6 +11,7 @@
     ../../modules/server.nix
     ../../modules/claude.nix
     ../../modules/sops.nix
+    ../../modules/services/adguard.nix
     ../../modules/services/ledger.nix
     ../../modules/services/monitoring.nix
   ];

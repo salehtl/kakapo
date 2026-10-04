@@ -19,6 +19,9 @@
   networking.networkmanager.enable = true;
 
   boot.loader.systemd-boot.enable = true;
+  # Bounds /boot (vfat, 1 GiB): each distinct kernel+initrd pair costs ~41 MiB,
+  # and a full /boot makes nixos-rebuild fail — silently, at 04:00.
+  boot.loader.systemd-boot.configurationLimit = 20;
   boot.loader.efi.canTouchEfiVariables = true;
 
   users.mutableUsers = false;

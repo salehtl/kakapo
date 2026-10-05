@@ -63,10 +63,10 @@ in
     - `users.mutableUsers = false`. Never `useradd`, `passwd`, or edit `/etc/passwd`.
     - SSH is key-only. Never enable password auth or root login.
     - Services bind `127.0.0.1`. They reach the tailnet via `tailscale serve`,
-      or the whole LAN via the `*.home.salehtl.com` nginx proxy in
-      `modules/services/home-domain.nix` — never by opening a new port.
+      or the whole LAN via the `<service>.salehtl.com` nginx proxy in
+      `modules/services/lan-proxy.nix` — never by opening a new port.
     - Open ports: 22 everywhere; 53 (AdGuard) on the LAN and tailnet; 443
-      (the home-domain proxy) on the LAN and tailnet. All interface-scoped except 22,
+      (the LAN proxy) on the LAN and tailnet. All interface-scoped except 22,
       and guarded by assertions. Nothing else.
     - Port 22 is open on **every** interface on purpose: it is the LAN fallback
       for when Tailscale is unavailable. Do not narrow it to `tailscale0`.

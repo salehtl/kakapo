@@ -19,9 +19,9 @@ _: {
       key = "notify/smtp_password";
     };
 
-    # Cloudflare API token for the *.home.salehtl.com DNS-01 challenge
-    # (modules/services/home-domain.nix): Zone:DNS:Edit + Zone:Read on
-    # salehtl.com only. Read at each issue/renewal, so nothing needs restarting.
+    # Cloudflare API token for the *.salehtl.com DNS-01 challenge
+    # and the public A records (modules/services/lan-proxy.nix): Zone:DNS:Edit +
+    # Zone:Read on salehtl.com. Read at each use, so nothing needs restarting.
     secrets."acme/cloudflare_token" = {
       sopsFile = ../secrets/acme.yaml;
       key = "acme/cloudflare_token";

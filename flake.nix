@@ -75,8 +75,9 @@
           ledger.nixosModules.default
           {
             nixpkgs.overlays = [
-              (_final: _prev: {
+              (final: _prev: {
                 herdr = herdr.packages.x86_64-linux.default;
+                cf = final.callPackage ./pkgs/cf/package.nix { };
                 inherit (unstableFor "x86_64-linux") claude-code;
               })
             ];

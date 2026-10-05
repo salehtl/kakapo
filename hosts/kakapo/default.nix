@@ -92,6 +92,7 @@
   environment.systemPackages = [
     pkgs.claude-code
     pkgs.herdr
+    pkgs.cf
   ];
 
   # Deliberately every interface, not just tailscale0. Tailscale is the sole

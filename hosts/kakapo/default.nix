@@ -13,6 +13,7 @@
     ../../modules/notify.nix
     ../../modules/sops.nix
     ../../modules/services/adguard.nix
+    ../../modules/services/home-domain.nix
     ../../modules/services/ledger.nix
     ../../modules/services/monitoring.nix
   ];

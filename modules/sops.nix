@@ -11,5 +11,20 @@ _: {
       key = "ledger/env";
       restartUnits = [ "ledger.service" ];
     };
+
+    # iCloud app-specific password for the upgrade-failure email
+    # (modules/notify.nix). Read per send, so nothing needs restarting.
+    secrets."notify/smtp_password" = {
+      sopsFile = ../secrets/notify.yaml;
+      key = "notify/smtp_password";
+    };
+
+    # Cloudflare API token for the *.home.salehtl.com DNS-01 challenge
+    # (modules/services/home-domain.nix): Zone:DNS:Edit + Zone:Read on
+    # salehtl.com only. Read at each issue/renewal, so nothing needs restarting.
+    secrets."acme/cloudflare_token" = {
+      sopsFile = ../secrets/acme.yaml;
+      key = "acme/cloudflare_token";
+    };
   };
 }

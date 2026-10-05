@@ -15,10 +15,7 @@ in
   # notifier needs.
   #
   # Outbound 587 only. Nothing here listens, so the firewall is unchanged.
-  sops.secrets."notify/smtp_password" = {
-    sopsFile = ../secrets/notify.yaml;
-    key = "notify/smtp_password";
-  };
+  # The password is declared in modules/sops.nix.
 
   programs.msmtp = {
     enable = true;

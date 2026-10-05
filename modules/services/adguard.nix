@@ -4,14 +4,15 @@
 #
 # State:   /var/lib/AdGuardHome/AdGuardHome.yaml (DynamicUser, 0600)
 #          Filter list copies live beside it and refresh on AdGuard's own timer.
-# Ingress: Web UI is tailnet only, https://kakapo.<tailnet>.ts.net:10000/.
+# Ingress: Web UI at https://kakapo.<tailnet>.ts.net:10000/ (tailnet) and
+#          https://adguard.salehtl.com (LAN, modules/services/lan-proxy.nix).
 #          DNS is :53 on the tailnet and the LAN -- see "Why :53 is open" below.
-# Login:   No `users` block is declared on purpose. A bcrypt hash in
-#          `settings` would land world-readable in the Nix store, so the
-#          password is set once through the web UI and persists in the state
-#          directory via `mutableSettings`. Same shape as Grafana's
-#          host-generated secret_key. Until it is set the UI is
-#          unauthenticated to the tailnet, so set it on first boot.
+# Login:   None, by Saleh's choice (2026-10-05): the UI is open to anyone on
+#          the LAN and tailnet. If one is ever wanted, never put the bcrypt
+#          hash in `settings` (world-readable Nix store), and never add a
+#          step to adguardhome's own preStart: its seccomp sandbox killed a yq
+#          step there on 2026-10-05 and the house had no DNS for two minutes.
+#          Use a separate root oneshot that adguardhome only *wants*.
 #
 # Why :53 is open, when every other service here binds 127.0.0.1:
 #   `tailscale serve` is an HTTPS reverse proxy. It cannot carry UDP, and it
@@ -32,6 +33,7 @@
 {
   config,
   lib,
+  pkgs,
   ...
 }:
 let
@@ -151,6 +153,55 @@ in
     };
   };
 
+  # End-to-end check that the house's resolver answers a public name through
+  # the LAN address, every minute. Emails once after two consecutive failures
+  # and once on recovery, not every minute in between. kakapo itself resolves
+  # through 1.1.1.2, so the email still goes out while AdGuard is down.
+  systemd.services.dns-health = {
+    description = "Check that AdGuard answers DNS for the house";
+    path = [
+      pkgs.dnsutils
+      pkgs.gnugrep
+      pkgs.coreutils
+      pkgs.msmtp
+      config.systemd.package
+    ];
+    serviceConfig = {
+      Type = "oneshot";
+      StateDirectory = "dns-health";
+    };
+    script = ''
+      failing=/var/lib/dns-health/failing
+      mail() {
+        printf 'To: salehtl@icloud.com\nFrom: salehtl@icloud.com\nSubject: [${config.networking.hostName}] %s\n\n%s\n' "$1" "$2" | msmtp -t
+      }
+      if dig +short +time=3 +tries=2 @10.0.0.215 one.one.one.one A | grep -q '^[0-9]'; then
+        if [ -e "$failing" ]; then
+          [ "$(cat "$failing")" -ge 2 ] && mail "DNS recovered" "AdGuard on 10.0.0.215 is answering again."
+          rm "$failing"
+        fi
+      else
+        n=$(( $(cat "$failing" 2>/dev/null || echo 0) + 1 ))
+        echo "$n" > "$failing"
+        echo "AdGuard did not answer (failure $n in a row)" >&2
+        if [ "$n" -eq 2 ]; then
+          mail "DNS is DOWN for the house" "AdGuard on 10.0.0.215 has not answered for 2 minutes.
+
+      Quickest recovery: sudo systemctl restart adguardhome
+      Or point UniFi DHCP DNS back at 1.1.1.1 (Settings > Networks > Default).
+
+      $(systemctl status --no-pager adguardhome 2>&1 | head -20)"
+        fi
+      fi
+    '';
+  };
+  systemd.timers.dns-health = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "2min";
+      OnUnitActiveSec = "1min";
+    };
+  };
   # kakapo must not resolve through its own AdGuard. Once the LAN's DHCP hands
   # out this host as the resolver, a dead AdGuard would otherwise take the
   # 04:00 `nixos-upgrade` with it -- github.com stops resolving and the failure

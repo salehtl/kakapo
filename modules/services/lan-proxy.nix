@@ -52,9 +52,11 @@ let
   lanInterface = "enp4s0"; # same NIC as modules/services/adguard.nix
 
   # name -> 127.0.0.1 port. Never Grafana or ledger; see the assertions.
-  # AdGuard's UI joins once it has a login: it currently has no user at all
-  # (`users: []`), and this would put it in front of every device in the house.
-  proxied = { };
+  proxied = {
+    # No login, by Saleh's choice (2026-10-05): anyone on the LAN or tailnet
+    # can change AdGuard's filtering. Revisit if that ever matters.
+    adguard = config.services.adguardhome.port;
+  };
 
   grafanaPort = config.services.grafana.settings.server.http_port;
   ledgerPort = lib.toInt (

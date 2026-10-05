@@ -10,6 +10,7 @@
     ../../modules/base.nix
     ../../modules/server.nix
     ../../modules/claude.nix
+    ../../modules/notify.nix
     ../../modules/sops.nix
     ../../modules/services/adguard.nix
     ../../modules/services/ledger.nix

@@ -94,6 +94,10 @@ nix store diff-closures /run/booted-system /run/current-system   # what changed 
 
 The "Configuration Revision" column is empty until `system.configurationRevision` is wired into the flake — pending follow-up. Until then, verify the active config by checking expected services (`systemctl status ledger`) or firewall state (`sudo iptables -L INPUT -n | grep dpt`).
 
+### Change anything that can touch AdGuard or networking
+
+The whole house resolves through kakapo, so verify with `scripts/guarded-test.sh <built system>` instead of a bare `switch-to-configuration test`: it rolls back to the running system if AdGuard stops answering for ~6 seconds. Test any AdGuard startup change *inside its real sandbox* (`SystemCallFilter`, `DynamicUser`), not on a copy outside it — a preStart step that passed outside the sandbox was killed by seccomp inside it on 2026-10-05 and took the house's DNS down for two minutes. `dns-health` emails if DNS stays down.
+
 ### Deploy a new ledger version
 
 kakapo runs the ledger commit pinned in `flake.lock`. Before bumping, make sure that commit's `internal/web/dist` was rebuilt and committed (the Nix build embeds it and never runs Node).

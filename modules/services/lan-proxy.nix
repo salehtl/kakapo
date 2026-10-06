@@ -62,9 +62,10 @@ let
   # name -> another machine on the LAN. Its traffic leaves kakapo from
   # lanAddress, so the upstream must trust 10.0.0.215 as a reverse proxy.
   lanUpstreams = {
-    # Home Assistant Yellow. Its configuration.yaml has
-    # http.use_x_forwarded_for + trusted_proxies [ 10.0.0.215 ]; without it HA
-    # answers every proxied request with 400. That file is out-of-band.
+    # Home Assistant Yellow. HA trusts 10.0.0.215 as a reverse proxy, set in its
+    # UI (Settings -> System -> Network; HA now ignores the http: block in
+    # configuration.yaml) and applied on restart. Without it HA answers every
+    # proxied request with 400. That setting is out-of-band.
     home = "http://10.0.0.10:8123";
   };
 

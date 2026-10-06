@@ -54,4 +54,32 @@ in
   };
 
   systemd.services.nixos-upgrade.onFailure = [ "notify-failure@%n.service" ];
+
+  # Email when the running nixpkgs is more than three weeks old. The upgrade
+  # alert above only fires when nixos-upgrade fails; it stays silent when the
+  # upgrade succeeds but has nothing new to build — the weekly lock workflow
+  # failing, or its PR sitting unmerged. Checking the age of what is actually
+  # running catches every one of those. The date comes from the nixpkgs
+  # version this system was built from (26.05.YYYYMMDD.rev).
+  systemd.services.nixpkgs-age = {
+    description = "Fail if the running nixpkgs is more than 21 days old";
+    onFailure = [ "notify-failure@%n.service" ];
+    serviceConfig.Type = "oneshot";
+    script = ''
+      built=$(cut -d. -f3 <<< "$(< /run/current-system/nixos-version)")
+      age=$(( ($(date +%s) - $(date -d "$built" +%s)) / 86400 ))
+      echo "running nixpkgs from $built, $age days old"
+      if [ "$age" -gt 21 ]; then
+        echo "flake.lock has not reached this host in $age days: check the update-flake-lock workflow, its open PR, and nixos-upgrade.service"
+        exit 1
+      fi
+    '';
+  };
+  systemd.timers.nixpkgs-age = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "09:00";
+      Persistent = true;
+    };
+  };
 }

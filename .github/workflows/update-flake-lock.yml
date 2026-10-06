@@ -49,7 +49,7 @@ jobs:
 
       - name: kakapo builds on the new lock
         run: |
-          nix build --print-build-logs \
+          nix build --print-build-logs --no-link \
             .#nixosConfigurations.kakapo.config.system.build.toplevel
 
       - name: Open pull request

@@ -42,7 +42,8 @@ buildNpmPackage (finalAttrs: {
 
   # npm tarballs carry no lockfile, so ./package-lock.json is generated and
   # committed here. Every dependency is fetched by the integrity hash recorded
-  # in it, so there is no separate npmDepsHash to keep in step. To bump: unpack
+  # in it, so there is no separate npmDepsHash to keep in step.
+  # scripts/update-pins.sh does the bump weekly in CI; by hand it is: unpack
   # the new tarball, drop devDependencies and scripts from package.json, run
   # `npm install --package-lock-only --ignore-scripts`, copy the lock here, and
   # update `version` and `hash` above.

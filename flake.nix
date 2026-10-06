@@ -28,6 +28,8 @@
       url = "github:salehtl/ledger";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # Pinned to a release tag, which `nix flake update` never moves;
+    # scripts/update-pins.sh bumps it weekly in the lock-update workflow.
     herdr = {
       url = "github:herdrdev/herdr/v0.9.3";
       inputs.nixpkgs.follows = "nixpkgs";

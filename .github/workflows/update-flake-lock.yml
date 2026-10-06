@@ -34,6 +34,12 @@ jobs:
       - name: nix flake update
         run: nix flake update
 
+      # The pins `nix flake update` cannot move: herdr's release tag in
+      # flake.nix and the cf CLI in pkgs/cf. Validated by the two steps below
+      # like everything else.
+      - name: Bump herdr and cf to their latest releases
+        run: nix shell nixpkgs#nodejs nixpkgs#jq nixpkgs#curl nixpkgs#git -c scripts/update-pins.sh
+
       # GitHub will not run `check` on the pull request opened below: anything
       # done with the default GITHUB_TOKEN does not trigger further workflows.
       # Rather than store a PAT to work around that, the lock is validated here
@@ -60,7 +66,8 @@ jobs:
           commit-message: "flake: weekly flake.lock bump"
           labels: dependencies
           body: |
-            Automated weekly `nix flake update`.
+            Automated weekly `nix flake update`, plus herdr and cf bumped to
+            their latest releases by `scripts/update-pins.sh`.
 
             Validated by the run that opened this PR: `nix flake check` passed
             and `nixosConfigurations.kakapo` built to a `toplevel`. GitHub does

@@ -26,5 +26,16 @@ _: {
       sopsFile = ../secrets/acme.yaml;
       key = "acme/cloudflare_token";
     };
+
+    # UniFi Network integration API key for the Dream Router 7 at
+    # https://10.0.0.1 (X-API-KEY header). Nothing on the host consumes it
+    # automatically; it is here so sessions on kakapo can read and change the
+    # network config without pasting it. Owned by saleh so no sudo is needed.
+    # Pass it to curl via --config on a pipe, never on the command line.
+    secrets."unifi/api_key" = {
+      sopsFile = ../secrets/unifi.yaml;
+      key = "unifi/api_key";
+      owner = "saleh";
+    };
   };
 }

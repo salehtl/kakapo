@@ -58,6 +58,8 @@ let
     # No login, by Saleh's choice (2026-10-05): anyone on the LAN or tailnet
     # can change AdGuard's filtering. Revisit if that ever matters.
     adguard = config.services.adguardhome.port;
+    # Immich has its own accounts (modules/services/immich.nix).
+    photos = config.services.immich.port;
   };
 
   # name -> another machine on the LAN. Its traffic leaves kakapo from
@@ -68,6 +70,19 @@ let
     # configuration.yaml) and applied on restart. Without it HA answers every
     # proxied request with 400. That setting is out-of-band.
     home = "http://10.0.0.10:8123";
+  };
+
+  # name -> extra nginx server directives, for apps the defaults don't fit.
+  serverExtra = {
+    # Phone backups upload whole videos in one request; stream them straight
+    # through instead of buffering to disk, and allow slow links.
+    photos = ''
+      client_max_body_size 50000M;
+      proxy_request_buffering off;
+      proxy_read_timeout 600s;
+      proxy_send_timeout 600s;
+      send_timeout 600s;
+    '';
   };
 
   grafanaPort = config.services.grafana.settings.server.http_port;
@@ -129,7 +144,10 @@ let
     "grafana.${zone}" = grafanaVhost;
   }
   // lib.mapAttrs' (
-    name: port: lib.nameValuePair "${name}.${zone}" (proxyVhost "http://127.0.0.1:${toString port}")
+    name: port:
+    lib.nameValuePair "${name}.${zone}" (
+      proxyVhost "http://127.0.0.1:${toString port}" // { extraConfig = serverExtra.${name} or ""; }
+    )
   ) proxied
   // lib.mapAttrs' (name: url: lib.nameValuePair "${name}.${zone}" (proxyVhost url)) lanUpstreams;
 

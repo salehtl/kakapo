@@ -4,16 +4,17 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05";
 
-    # Claude Code only. The 26.05 release branch does not backport it: it sat on
+    # Claude Code, and Immich with its NixOS module. The 26.05 release branch
+    # does not backport Claude Code: it sat on
     # 2.1.223 while upstream shipped 2.1.287, and a `nix flake update` moved the
     # whole release forward three days without moving this package at all. The
     # tool releases several times a week, so tracking it on the release branch
     # means running months-old builds.
     #
     # Deliberately NOT `inputs.nixpkgs.follows = "nixpkgs"` — the point is a
-    # second, newer package set. Scope is one package, via the overlay below;
-    # nothing else on this host comes from unstable. `nixpkgs-unstable` rather
-    # than `master` because it is the channel Hydra has actually built.
+    # second, newer package set. Scope is those two, via the overlay and the
+    # module swap below; nothing else on this host comes from unstable.
+    # `nixpkgs-unstable` rather than `master` because it is the channel Hydra has actually built.
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
@@ -74,11 +75,18 @@
           sops-nix.nixosModules.sops
           ledger.nixosModules.default
           {
+            # Immich 3 with the module written for it. 26.05 ships Immich 2.7.5,
+            # marked insecure (two CVEs, 2.x is unmaintained); Immich 3 lands in
+            # 26.11. Drop this, and immich from the overlay, once on 26.11.
+            disabledModules = [ "services/web-apps/immich.nix" ];
+            imports = [ "${nixpkgs-unstable}/nixos/modules/services/web-apps/immich.nix" ];
+          }
+          {
             nixpkgs.overlays = [
               (final: _prev: {
                 herdr = herdr.packages.x86_64-linux.default;
                 cf = final.callPackage ./pkgs/cf/package.nix { };
-                inherit (unstableFor "x86_64-linux") claude-code;
+                inherit (unstableFor "x86_64-linux") claude-code immich;
               })
             ];
           }

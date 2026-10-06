@@ -1,8 +1,10 @@
 # Health dashboard: Prometheus scrapes the exporters below and Grafana shows
 # them, tailnet only, at https://kakapo.<tailnet>.ts.net:8443/.
 #
-# Login:   tailscale serve passes the caller's tailnet login in the
-#          Tailscale-User-Login header and Grafana trusts it (auth.proxy).
+# Login:   tailscale serve, and nginx for grafana.salehtl.com (via
+#          tailscale-nginx-auth, see lan-proxy.nix), pass the caller's
+#          tailnet login in the Tailscale-User-Login header and Grafana
+#          trusts it (auth.proxy).
 #          Only the admin user below exists and sign-up is off, so other
 #          tailnet users and tagged devices get 401. No passwords.
 # State:   /var/lib/grafana (incl. secret_key, generated on first start),
@@ -122,6 +124,9 @@ in
         feedback_links_enabled = false;
       };
       news.news_feed_enabled = false;
+      # Live websockets check Origin against root_url; also allow the LAN
+      # proxy's name (modules/services/lan-proxy.nix).
+      live.allowed_origins = "https://grafana.salehtl.com";
     };
 
     provision = {

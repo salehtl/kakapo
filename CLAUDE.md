@@ -73,7 +73,7 @@ Composition is layered; each layer only knows about the one below it:
   family DNS (`1.1.1.3`) and is *not* filtered here — `dns.allowed_clients` would refuse
   it anyway.
 - `modules/services/ledger.nix` → **ledger 1.0**, Saleh's budgeting PWA (moved from dinosaur on 2026-10-03). The module itself is `services.ledger` from the `ledger` flake input (`nix/module.nix` there). Listens on `127.0.0.1:8090`; state and real financial data in `/var/lib/ledger` (0700), with a copy in `/var/lib/ledger/backups` before each new build first runs. Secrets come from `/run/secrets/ledger/env`. `requireDatabase` keeps the unit down until `ledger.db` exists. It is **tailnet only**, served at `https://kakapo.<tailnet>.ts.net/` by the `ledger-tailscale-serve` oneshot. Never add a public hostname or an Access policy for it; it holds financial data and is never public.
-- `modules/services/monitoring.nix` → **health dashboard**: Prometheus (90 days) scraping `node` (with the systemd collector), `nvidia-gpu` and `smartctl` exporters, and Grafana with three pinned grafana.com dashboards (Node Exporter Full, Nvidia GPU Metrics, SMARTctl). Everything on `127.0.0.1`; Grafana is served on the tailnet at `https://kakapo.<tailnet>.ts.net:8443/` by `grafana-tailscale-serve`. No passwords: Grafana trusts the `Tailscale-User-Login` header from `tailscale serve` (`auth.proxy`), and the only user is `salehtl@github` (admin); sign-up is off, so anyone else gets 401. Grafana's `secret_key` is generated on the host in `/var/lib/grafana` on first start.
+- `modules/services/monitoring.nix` → **health dashboard**: Prometheus (90 days) scraping `node` (with the systemd collector), `nvidia-gpu` and `smartctl` exporters, and Grafana with three pinned grafana.com dashboards (Node Exporter Full, Nvidia GPU Metrics, SMARTctl). Everything on `127.0.0.1`; Grafana is served on the tailnet at `https://kakapo.<tailnet>.ts.net:8443/` by `grafana-tailscale-serve`, and at `https://grafana.salehtl.com` to tailnet devices through the LAN proxy (identity from `tailscale-nginx-auth`; see Conventions). No passwords: Grafana trusts the `Tailscale-User-Login` header from `tailscale serve` (`auth.proxy`), and the only user is `salehtl@github` (admin); sign-up is off, so anyone else gets 401. Grafana's `secret_key` is generated on the host in `/var/lib/grafana` on first start.
 
 When adding a new host, create `hosts/<name>/{default.nix,hardware.nix}`, add a `nixosConfigurations.<name>` entry in `flake.nix`, and reuse `modules/base.nix` (+ `server.nix` if headless). Keep host-specific state (hostname, users, ports, services) in the host's `default.nix`; promote anything that would apply to multiple hosts into `modules/`.
 
@@ -171,10 +171,17 @@ kakapo has no public ingress: Forgejo (`git.sirdab.ae`), the public nginx, Postg
   Saleh on 2026-10-05). `tailscale serve` can only present the `*.ts.net`
   certificate and only reaches tailnet devices; this exists for devices that
   are not on the tailnet. nginx binds `10.0.0.215`, never `0.0.0.0`, because
-  tailscaled holds the tailnet address's `:443`. Never proxy Grafana (its
-  `auth.proxy` trusts a header from loopback, which is where nginx connects
-  from) or ledger (tailnet-only by policy) through it — assertions enforce
-  both. AdGuard's UI is on it without a login, by Saleh's choice (2026-10-05).
+  tailscaled holds the tailnet address's `:443`. Never put ledger
+  (tailnet-only by policy) behind it, and never put Grafana in the
+  unauthenticated `proxied` set: Grafana's `auth.proxy` trusts a header from
+  loopback, which is where nginx connects from. `grafana.salehtl.com`
+  (2026-10-06, Saleh's choice) instead has its own vhost behind
+  `services.nginx.tailscaleAuth`: nginx asks tailscaled who the connecting
+  tailnet address is and sets `Tailscale-User-Login` itself (from
+  `$auth_user`, the full `salehtl@github`), overwriting any client copy, so
+  only tailnet devices get in and plain-LAN clients get 401. Assertions enforce
+  all three. AdGuard's UI is on it without a login, by Saleh's choice
+  (2026-10-05).
 - Secrets live in `secrets/<service>.yaml` (encrypted via sops), one file per service. Edit with `sops secrets/<service>.yaml`; declare each new secret in `modules/sops.nix` with its `sopsFile` and `restartUnits` pointing at any service that consumes it.
 - `users.mutableUsers = false` — never `useradd`/`passwd` on the host; the flake is the only path. `wheelNeedsPassword = false` because `saleh` has no declared password (SSH key is the sole auth factor).
 - The three host-level `assertions` are guardrails, not ceremony. Don't weaken them — if one fires, the underlying config is wrong, not the assertion.

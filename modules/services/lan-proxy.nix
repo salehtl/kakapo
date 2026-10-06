@@ -52,7 +52,8 @@ let
   lanAddress = "10.0.0.215";
   lanInterface = "enp4s0"; # same NIC as modules/services/adguard.nix
 
-  # name -> 127.0.0.1 port. Never Grafana or ledger; see the assertions.
+  # name -> 127.0.0.1 port, with no authentication added. Never Grafana (it
+  # has its own vhost below) or ledger; see the assertions.
   proxied = {
     # No login, by Saleh's choice (2026-10-05): anyone on the LAN or tailnet
     # can change AdGuard's filtering. Revisit if that ever matters.
@@ -97,6 +98,26 @@ let
       };
     };
 
+  # Grafana logs in whoever its Tailscale-User-Login header names, trusting it
+  # from loopback, which is where nginx connects from. So this vhost never
+  # passes a client's header: it sets it from tailscaled's whois of the
+  # connecting address (tailscale-nginx-auth). Tailnet devices arrive through
+  # the subnet route with their tailnet address and are identified; anything
+  # else fails whois and gets 401. Never put Grafana in `proxied`.
+  grafanaVhost = vhost {
+    locations."/" = {
+      proxyPass = "http://127.0.0.1:${toString grafanaPort}";
+      proxyWebsockets = true;
+      # $auth_* are set by services.nginx.tailscaleAuth's auth_request.
+      # $auth_user is the full login (salehtl@github), matching what tailscale
+      # serve sends; $auth_login is only the part before the @.
+      extraConfig = ''
+        proxy_set_header Tailscale-User-Login $auth_user;
+        proxy_set_header Tailscale-User-Name $auth_name;
+      '';
+    };
+  };
+
   vhosts = {
     # Landing page, and the name to test the whole chain with.
     "kakapo.${zone}" = vhost {
@@ -105,6 +126,7 @@ let
         return 200 "kakapo\n";
       '';
     };
+    "grafana.${zone}" = grafanaVhost;
   }
   // lib.mapAttrs' (
     name: port: lib.nameValuePair "${name}.${zone}" (proxyVhost "http://127.0.0.1:${toString port}")
@@ -167,6 +189,14 @@ in
     };
   };
 
+  # Identifies grafana.salehtl.com's callers; see grafanaVhost. expectedTailnet
+  # also refuses devices shared into the tailnet from another one.
+  services.nginx.tailscaleAuth = {
+    enable = true;
+    expectedTailnet = "marmoset-paradise.ts.net";
+    virtualHosts = [ "grafana.${zone}" ];
+  };
+
   boot.kernel.sysctl."net.ipv4.ip_nonlocal_bind" = 1;
 
   # Interface-scoped, so the global allowedTCPPorts stays [ 22 ]. tailscale0
@@ -215,7 +245,14 @@ in
     }
     {
       assertion = !(lib.elem grafanaPort (lib.attrValues proxied));
-      message = "Grafana is proxied on the LAN. Grafana trusts the Tailscale-User-Login header from loopback (auth.proxy), and nginx connects from loopback, so anyone on the LAN would be one forged header from admin. Keep Grafana on tailscale serve.";
+      message = "Grafana is in `proxied`, which forwards without authentication. Grafana trusts the Tailscale-User-Login header from loopback (auth.proxy), and nginx connects from loopback, so anyone on the LAN would be one forged header from admin. grafana.salehtl.com has its own vhost (grafanaVhost) behind tailscale-nginx-auth.";
+    }
+    {
+      assertion =
+        config.services.nginx.tailscaleAuth.enable
+        && config.services.nginx.tailscaleAuth.expectedTailnet != ""
+        && lib.elem "grafana.${zone}" config.services.nginx.tailscaleAuth.virtualHosts;
+      message = "grafana.${zone} is served without tailscale-nginx-auth. Its vhost sets Tailscale-User-Login from $auth_user, so without the auth_request that header is empty or forgeable and Grafana's auth.proxy would hand out admin. Keep it in services.nginx.tailscaleAuth.virtualHosts with expectedTailnet set.";
     }
     {
       assertion = !(lib.elem ledgerPort (lib.attrValues proxied));

@@ -22,8 +22,8 @@
 #     1. Firewall rules are scoped to tailscale0 and the LAN NIC, so :53 is
 #        unreachable from anywhere `networking.firewall.allowedTCPPorts` would
 #        expose it. The global list stays [ 22 ].
-#     2. `dns.allowed_clients` restricts answers to the tailnet CGNAT range and
-#        the LAN /24, independently of the firewall. An open resolver is an
+#     2. `dns.allowed_clients` restricts answers to the tailnet CGNAT range,
+#        the LAN /24 and the IoT VLAN, independently of the firewall. An open resolver is an
 #        amplification source; this holds even if a firewall rule regresses.
 #     3. `ratelimit` caps per-client QPS.
 #   bind_hosts is 0.0.0.0 rather than the three literal addresses because the
@@ -42,6 +42,12 @@ let
 
   lanInterface = "enp4s0"; # the igb NIC from hosts/kakapo/hardware.nix
   lanCidr = "10.0.0.0/24";
+  # IoT VLAN 30. UniFi hands it 10.0.0.215 as its DNS server and its firewall
+  # allows IoT -> 10.0.0.215:53 ("IoT allow DNS to kakapo"), so AdGuard must
+  # answer it too. Missing from allowed_clients until 2026-10-06, IoT queries
+  # were silently dropped. Its packets arrive on the LAN NIC (routed by the
+  # gateway), which the firewall below already opens :53 on.
+  iotCidr = "192.168.30.0/24";
   lanGateway = "10.0.0.1";
   tailnetCidr = "100.64.0.0/10"; # Tailscale's CGNAT range
   tailnetDomain = "marmoset-paradise.ts.net";
@@ -113,6 +119,7 @@ in
           "127.0.0.1"
           tailnetCidr
           lanCidr
+          iotCidr
         ];
         ratelimit = 50;
 

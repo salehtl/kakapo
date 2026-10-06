@@ -66,9 +66,12 @@ Composition is layered; each layer only knows about the one below it:
   the UniFi UI (Settings → Networks → Default → DHCP Name Server). kakapo
   itself is unaffected either way: it resolves via the `1.1.1.2/1.0.0.2` pin,
   never through its own AdGuard, so SSH and `nixos-rebuild` keep working.
-  Guest (`192.168.20.0/24`) and IoT (`192.168.30.0/24`) were left on Cloudflare
-  family DNS and are *not* filtered here — `dns.allowed_clients` would refuse
-  them anyway.
+  IoT (`192.168.30.0/24`, VLAN 30) also resolves here: UniFi DHCP hands it
+  `10.0.0.215` and a UniFi firewall rule allows IoT → `10.0.0.215:53`, so
+  `allowed_clients` includes it (until 2026-10-06 it did not, and every IoT
+  query was silently dropped). Guest (`192.168.20.0/24`) stays on Cloudflare
+  family DNS (`1.1.1.3`) and is *not* filtered here — `dns.allowed_clients` would refuse
+  it anyway.
 - `modules/services/ledger.nix` → **ledger 1.0**, Saleh's budgeting PWA (moved from dinosaur on 2026-10-03). The module itself is `services.ledger` from the `ledger` flake input (`nix/module.nix` there). Listens on `127.0.0.1:8090`; state and real financial data in `/var/lib/ledger` (0700), with a copy in `/var/lib/ledger/backups` before each new build first runs. Secrets come from `/run/secrets/ledger/env`. `requireDatabase` keeps the unit down until `ledger.db` exists. It is **tailnet only**, served at `https://kakapo.<tailnet>.ts.net/` by the `ledger-tailscale-serve` oneshot. Never add a public hostname or an Access policy for it; it holds financial data and is never public.
 - `modules/services/monitoring.nix` → **health dashboard**: Prometheus (90 days) scraping `node` (with the systemd collector), `nvidia-gpu` and `smartctl` exporters, and Grafana with three pinned grafana.com dashboards (Node Exporter Full, Nvidia GPU Metrics, SMARTctl). Everything on `127.0.0.1`; Grafana is served on the tailnet at `https://kakapo.<tailnet>.ts.net:8443/` by `grafana-tailscale-serve`. No passwords: Grafana trusts the `Tailscale-User-Login` header from `tailscale serve` (`auth.proxy`), and the only user is `salehtl@github` (admin); sign-up is off, so anyone else gets 401. Grafana's `secret_key` is generated on the host in `/var/lib/grafana` on first start.
 

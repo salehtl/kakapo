@@ -39,7 +39,8 @@
 #
 # Adding a service: add `<name> = <port>;` to `proxied` below. It becomes
 # https://<name>.salehtl.com, proxied to 127.0.0.1:<port>, and its DNS record
-# appears on the next activation. Removing it deletes the record.
+# appears on the next activation. Removing it deletes the record. A service on
+# another LAN machine goes in `lanUpstreams` as `<name> = "http://<ip>:<port>";`.
 {
   config,
   lib,
@@ -58,6 +59,15 @@ let
     adguard = config.services.adguardhome.port;
   };
 
+  # name -> another machine on the LAN. Its traffic leaves kakapo from
+  # lanAddress, so the upstream must trust 10.0.0.215 as a reverse proxy.
+  lanUpstreams = {
+    # Home Assistant Yellow. Its configuration.yaml has
+    # http.use_x_forwarded_for + trusted_proxies [ 10.0.0.215 ]; without it HA
+    # answers every proxied request with 400. That file is out-of-band.
+    home = "http://10.0.0.10:8123";
+  };
+
   grafanaPort = config.services.grafana.settings.server.http_port;
   ledgerPort = lib.toInt (
     lib.last (lib.splitString ":" config.services.ledger.settings.server.listen)
@@ -72,10 +82,10 @@ let
     // extra;
 
   proxyVhost =
-    port:
+    upstream:
     vhost {
       locations."/" = {
-        proxyPass = "http://127.0.0.1:${toString port}";
+        proxyPass = upstream;
         proxyWebsockets = true;
         # Grafana's auth.proxy trusts these headers from loopback, which is
         # where nginx connects from. Never forward a client's copy.
@@ -95,7 +105,10 @@ let
       '';
     };
   }
-  // lib.mapAttrs' (name: port: lib.nameValuePair "${name}.${zone}" (proxyVhost port)) proxied;
+  // lib.mapAttrs' (
+    name: port: lib.nameValuePair "${name}.${zone}" (proxyVhost "http://127.0.0.1:${toString port}")
+  ) proxied
+  // lib.mapAttrs' (name: url: lib.nameValuePair "${name}.${zone}" (proxyVhost url)) lanUpstreams;
 
   names = lib.attrNames vhosts;
 

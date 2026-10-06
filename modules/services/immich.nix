@@ -15,13 +15,15 @@
 # Admin settings (external domain, jobs, storage template) live in the web UI
 # and the database, not here: setting `services.immich.settings` would make
 # all of them read-only in the UI.
-{ config, ... }:
+{ config, pkgs, ... }:
 let
   mediaLocation = "/mnt/media/immich";
 in
 {
   services.immich = {
     enable = true;
+    # 26.05's pkgs.immich is the insecure 2.7.5; see flake.nix.
+    package = pkgs.unstable.immich;
     host = "127.0.0.1";
     inherit mediaLocation;
   };

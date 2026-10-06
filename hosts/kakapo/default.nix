@@ -81,18 +81,19 @@
 
   virtualisation.docker.enable = true;
 
-  # Allow unfree packages by name rather than all unfree packages.
+  # Allow unfree packages by name rather than all unfree packages. Only this
+  # host's own package set: claude-code comes from pkgs.unstable, which has its
+  # own predicate in flake.nix.
   nixpkgs.config.allowUnfreePredicate =
     pkg:
     builtins.elem (lib.getName pkg) [
-      "claude-code"
       "nvidia-x11"
       "nvidia-settings"
       "nvidia-persistenced"
     ];
   environment.systemPackages = [
-    pkgs.claude-code
-    pkgs.herdr
+    pkgs.unstable.claude-code
+    pkgs.unstable.herdr
     pkgs.cf
   ];
 

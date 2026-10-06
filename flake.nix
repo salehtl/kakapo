@@ -12,8 +12,9 @@
     # means running months-old builds.
     #
     # Deliberately NOT `inputs.nixpkgs.follows = "nixpkgs"` — the point is a
-    # second, newer package set. Scope is those three, via the overlay and the
-    # module swap below; nothing else on this host comes from unstable.
+    # second, newer package set, exposed as `pkgs.unstable`. Used for those
+    # three only (and the Immich module swap below); nothing else on this
+    # host comes from unstable.
     # `nixpkgs-unstable` rather than `master` because it is the channel Hydra
     # has actually built.
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixpkgs-unstable";
@@ -47,13 +48,16 @@
         "aarch64-darwin"
       ];
 
+      # Exposed to every module as `pkgs.unstable` (overlay below), so a package
+      # taken from unstable is named as such where it is used:
+      # `pkgs.unstable.claude-code`, never a silent override of `pkgs.<name>`.
+      #
+      # A separate import rather than `nixpkgs-unstable.legacyPackages` because
       # claude-code is unfree, and `nixpkgs.config.allowUnfreePredicate` in
-      # hosts/kakapo only governs *this* host's package set — a second package
-      # set carries its own config, so the predicate does not reach it and
-      # evaluation fails with "has an unfree license". Hence a separate import
-      # rather than `nixpkgs-unstable.legacyPackages`. The predicate here is
-      # deliberately one name, not a copy of the host's list: this package set
-      # exists to produce exactly one package.
+      # hosts/kakapo only governs the host's own package set; a second package
+      # set carries its own config. The predicate is deliberately just the
+      # unfree packages this host takes from unstable, not a copy of the
+      # host's list.
       unstableFor =
         system:
         import nixpkgs-unstable {
@@ -73,7 +77,8 @@
           {
             # Immich 3 with the module written for it. 26.05 ships Immich 2.7.5,
             # marked insecure (two CVEs, 2.x is unmaintained); Immich 3 lands in
-            # 26.11. Drop this, and immich from the overlay, once on 26.11.
+            # 26.11. Drop this, and pkgs.unstable.immich in
+            # modules/services/immich.nix, once on 26.11.
             disabledModules = [ "services/web-apps/immich.nix" ];
             imports = [ "${nixpkgs-unstable}/nixos/modules/services/web-apps/immich.nix" ];
           }
@@ -81,7 +86,7 @@
             nixpkgs.overlays = [
               (final: _prev: {
                 cf = final.callPackage ./pkgs/cf/package.nix { };
-                inherit (unstableFor "x86_64-linux") claude-code immich herdr;
+                unstable = unstableFor final.stdenv.hostPlatform.system;
               })
             ];
           }

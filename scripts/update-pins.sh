@@ -1,23 +1,12 @@
 #!/usr/bin/env bash
-# Move the pins that `nix flake update` cannot: herdr's release tag in
-# flake.nix and the cf CLI in pkgs/cf. Run from the repo root; it edits files
-# in place and leaves validation to the caller (the weekly update-flake-lock
-# workflow runs `nix flake check` and builds kakapo right after).
+# Move the pin that `nix flake update` cannot: the cf CLI in pkgs/cf, packaged
+# from an npm tarball with a committed lock. Run from the repo root; it edits
+# files in place and leaves validation to the caller (the weekly
+# update-flake-lock workflow runs `nix flake check` and builds kakapo right
+# after).
 #
-#   nix shell nixpkgs#nodejs nixpkgs#jq nixpkgs#curl nixpkgs#git -c scripts/update-pins.sh
+#   nix shell nixpkgs#nodejs nixpkgs#jq nixpkgs#curl -c scripts/update-pins.sh
 set -euo pipefail
-
-# herdr: follow the newest release tag (vX.Y.Z), never an unreleased main.
-current=$(grep -oE 'github:herdrdev/herdr/v[0-9.]+' flake.nix | sed 's|.*/||')
-latest=$(git ls-remote --tags --refs https://github.com/herdrdev/herdr |
-  grep -oE 'refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' | sed 's|refs/tags/||' | sort -V | tail -1)
-if [ -n "$latest" ] && [ "$latest" != "$current" ]; then
-  sed -i "s|github:herdrdev/herdr/$current|github:herdrdev/herdr/$latest|" flake.nix
-  nix flake update herdr
-  echo "herdr: $current -> $latest"
-else
-  echo "herdr: $current is current"
-fi
 
 # cf: npm's `latest` dist-tag, following the recipe in pkgs/cf/package.nix.
 pkg=pkgs/cf/package.nix

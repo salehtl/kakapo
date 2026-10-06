@@ -4,17 +4,18 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05";
 
-    # Claude Code, and Immich with its NixOS module. The 26.05 release branch
-    # does not backport Claude Code: it sat on
-    # 2.1.223 while upstream shipped 2.1.287, and a `nix flake update` moved the
+    # Claude Code, herdr (not in 26.05), and Immich with its NixOS module.
+    # The 26.05 release branch does not backport Claude Code: it sat on 2.1.223
+    # while upstream shipped 2.1.287, and a `nix flake update` moved the
     # whole release forward three days without moving this package at all. The
     # tool releases several times a week, so tracking it on the release branch
     # means running months-old builds.
     #
     # Deliberately NOT `inputs.nixpkgs.follows = "nixpkgs"` — the point is a
-    # second, newer package set. Scope is those two, via the overlay and the
+    # second, newer package set. Scope is those three, via the overlay and the
     # module swap below; nothing else on this host comes from unstable.
-    # `nixpkgs-unstable` rather than `master` because it is the channel Hydra has actually built.
+    # `nixpkgs-unstable` rather than `master` because it is the channel Hydra
+    # has actually built.
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
@@ -28,12 +29,6 @@
       url = "github:salehtl/ledger";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    # Pinned to a release tag, which `nix flake update` never moves;
-    # scripts/update-pins.sh bumps it weekly in the lock-update workflow.
-    herdr = {
-      url = "github:herdrdev/herdr/v0.9.3";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
   outputs =
@@ -44,7 +39,6 @@
       treefmt-nix,
       sops-nix,
       ledger,
-      herdr,
       ...
     }:
     let
@@ -86,9 +80,8 @@
           {
             nixpkgs.overlays = [
               (final: _prev: {
-                herdr = herdr.packages.x86_64-linux.default;
                 cf = final.callPackage ./pkgs/cf/package.nix { };
-                inherit (unstableFor "x86_64-linux") claude-code immich;
+                inherit (unstableFor "x86_64-linux") claude-code immich herdr;
               })
             ];
           }

@@ -1,6 +1,7 @@
-{ config, ... }:
+{ config, lib, ... }:
 let
   host = config.networking.hostName;
+  normalUsers = lib.filter (u: u.isNormalUser) (lib.attrValues config.users.users);
 in
 {
   # Managed-policy CLAUDE.md: loaded by every Claude Code / agent session on this
@@ -13,6 +14,15 @@ in
 
     You are on **${host}**, a single-host NixOS server. Everything about this
     machine is declared in one flake: **github:salehtl/kakapo**.
+
+    ## Working on a project, not the host?
+
+    Projects live in `~/src/<name>`, and their rules are in
+    `/etc/claude-code/projects.md`. It loads automatically for any session under
+    `~/src` (it is linked there as `~/src/CLAUDE.md`); working on a project
+    anywhere else, read it first. In short: tools come from the project's own
+    flake, never the host; no sudo; bind `127.0.0.1`; never touch the host or
+    the kakapo flake from project work.
 
     ## Read this before changing anything
 
@@ -62,9 +72,11 @@ in
 
     - `users.mutableUsers = false`. Never `useradd`, `passwd`, or edit `/etc/passwd`.
     - SSH is key-only. Never enable password auth or root login.
-    - Services bind `127.0.0.1`. They reach the tailnet via `tailscale serve`,
-      or the whole LAN via the `<service>.salehtl.com` nginx proxy in
-      `modules/services/lan-proxy.nix` — never by opening a new port.
+    - Services bind `127.0.0.1` and are reached only through the
+      `<service>.salehtl.com` nginx proxy in `modules/services/lan-proxy.nix`
+      (`proxied` for the house, `tailnetOnly` for tailnet devices). Nothing
+      uses `tailscale serve`; its config is cleared at every boot. Never open a
+      new port.
     - Open ports: 22 everywhere; 53 (AdGuard) on the LAN and tailnet; 443
       (the LAN proxy) on the LAN and tailnet. All interface-scoped except 22,
       and guarded by assertions. Nothing else.
@@ -84,4 +96,14 @@ in
     `/run/booted-system/kernel` against `/run/current-system/kernel`. Activating
     a new generation does not require one.
   '';
+
+  # Rules for project work, as opposed to host work. Claude Code loads every
+  # CLAUDE.md from the working directory up, so linking the guide as
+  # ~/src/CLAUDE.md reaches every session started in a project there,
+  # including T3 Code's agents, without loading it into host sessions.
+  environment.etc."claude-code/projects.md".source = ./claude-projects.md;
+  systemd.tmpfiles.rules = lib.concatMap (u: [
+    "d ${u.home}/src 0755 ${u.name} ${u.group} -"
+    "L+ ${u.home}/src/CLAUDE.md - - - - /etc/claude-code/projects.md"
+  ]) normalUsers;
 }

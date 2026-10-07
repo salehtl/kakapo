@@ -37,8 +37,8 @@
   # NetworkManager still appends the DHCP one underneath. Telling NM to stay out
   # of resolv.conf entirely is what actually removes 10.0.0.10.
   #
-  # Tailscale is unaffected: tailscaled owns resolv.conf at runtime, keeps
-  # serving MagicDNS on 100.100.100.100, and takes these as its upstreams.
+  # Tailscale leaves resolv.conf alone (`--accept-dns=false` in base.nix) and
+  # keeps serving MagicDNS on 100.100.100.100, which AdGuard uses for *.ts.net.
   #
   # IPv4 only on purpose — this host has no IPv6 default route, so v6 resolvers
   # would be dead entries that cost a timeout each.

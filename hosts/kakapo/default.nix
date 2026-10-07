@@ -18,6 +18,7 @@
     ../../modules/services/lan-proxy.nix
     ../../modules/services/ledger.nix
     ../../modules/services/monitoring.nix
+    ../../modules/services/zapret.nix
   ];
 
   networking.hostName = "kakapo";

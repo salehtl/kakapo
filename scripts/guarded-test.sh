@@ -30,3 +30,11 @@ for i in $(seq 1 20); do
   sleep 2
 done
 echo "DNS answered throughout"
+
+# Something else can switch the system underneath a test: on 2026-10-06/07
+# nixos-upgrade.timer fired mid-activation and switched to master. Say so
+# rather than report a clean test of a system that is no longer running.
+if [ "$(readlink /run/current-system)" != "$new" ]; then
+  echo "WARNING: $new is no longer the running system (now $(readlink /run/current-system)); check nixos-upgrade.service" >&2
+  exit 3
+fi

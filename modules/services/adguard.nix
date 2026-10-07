@@ -37,7 +37,6 @@
   ...
 }:
 let
-  servePort = 10000; # tailscale serve allows 443 (ledger), 8443 (Grafana), 10000
   uiPort = 3001; # not 3000: Grafana has it (modules/services/monitoring.nix)
 
   lanInterface = "enp4s0"; # the igb NIC from hosts/kakapo/hardware.nix
@@ -235,28 +234,6 @@ in
       ${lanInterface} = dns;
     };
 
-  # Same pattern as ledger-tailscale-serve and grafana-tailscale-serve.
-  systemd.services.adguardhome-tailscale-serve = {
-    description = "Serve the AdGuard Home UI to the tailnet over HTTPS";
-    after = [
-      "tailscaled.service"
-      "adguardhome.service"
-    ];
-    wants = [ "tailscaled.service" ];
-    wantedBy = [ "multi-user.target" ];
-    path = [ config.services.tailscale.package ];
-    unitConfig.StartLimitIntervalSec = 0;
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      Restart = "on-failure";
-      RestartSec = 10;
-      TimeoutStartSec = 60;
-    };
-    script = "tailscale serve --bg --https=${toString servePort} http://127.0.0.1:${toString uiPort}";
-    preStop = "tailscale serve --https=${toString servePort} off";
-  };
-
   assertions = [
     {
       # modules/services/adguard.nix depends on the host resolving
@@ -283,7 +260,7 @@ in
   # scrapeConfig pointed at it would sit permanently red on the Grafana
   # dashboard. Monitoring it would need a separate adguard_exporter sidecar.
   #
-  # Note also that the UI is reached through `tailscale serve`, which connects
+  # Note also that the UI is reached through the LAN proxy, which connects
   # from loopback, so AdGuard attributes every *UI-side* query log entry to
   # 127.0.0.1. Real DNS clients hit :53 directly and are logged correctly.
 }

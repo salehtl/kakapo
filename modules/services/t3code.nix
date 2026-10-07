@@ -5,9 +5,9 @@
 #   t3 serve --host 127.0.0.1 --port 3773 ~/some-project
 #   t3 pair      # one-time link/QR to pair a phone or browser
 #
-# Never `--tailscale` / `--tailscale-serve`: tailscale serve allows only 443,
-# 8443 and 10000, all taken (ledger, Grafana, AdGuard), and the default would
-# replace ledger's mapping on 443. t3.salehtl.com is the HTTPS route instead.
+# Never `--tailscale` / `--tailscale-serve`: nothing on kakapo uses tailscale
+# serve (every app is behind the LAN proxy), and it would add a second route
+# without the tailscale-nginx-auth gate. t3.salehtl.com is the HTTPS route.
 #
 # While it runs, tailnet devices reach it at https://t3.salehtl.com (the LAN
 # proxy's tailnet-only list, behind tailscale-nginx-auth); otherwise that name

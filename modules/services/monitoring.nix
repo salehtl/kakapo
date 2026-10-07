@@ -1,10 +1,9 @@
 # Health dashboard: Prometheus scrapes the exporters below and Grafana shows
-# them, tailnet only, at https://kakapo.<tailnet>.ts.net:8443/.
+# them, tailnet only, at https://grafana.salehtl.com (modules/services/lan-proxy.nix).
 #
-# Login:   tailscale serve, and nginx for grafana.salehtl.com (via
-#          tailscale-nginx-auth, see lan-proxy.nix), pass the caller's
-#          tailnet login in the Tailscale-User-Login header and Grafana
-#          trusts it (auth.proxy).
+# Login:   nginx asks tailscaled who the caller is (tailscale-nginx-auth) and
+#          passes their tailnet login in the Tailscale-User-Login header;
+#          Grafana trusts it (auth.proxy).
 #          Only the admin user below exists and sign-up is off, so other
 #          tailnet users and tagged devices get 401. No passwords.
 # State:   /var/lib/grafana (incl. secret_key, generated on first start),
@@ -18,8 +17,8 @@
   ...
 }:
 let
-  host = "kakapo.marmoset-paradise.ts.net";
-  servePort = 8443; # tailscale serve allows 443 (ledger), 8443 and 10000
+  # Served only by the LAN proxy, to tailnet devices (modules/services/lan-proxy.nix).
+  host = "grafana.salehtl.com";
   grafanaPort = 3000;
   inherit (config.services.grafana) dataDir;
   inherit (config.services.prometheus) exporters;
@@ -88,7 +87,7 @@ in
         http_addr = "127.0.0.1";
         http_port = grafanaPort;
         domain = host;
-        root_url = "https://${host}:${toString servePort}/";
+        root_url = "https://${host}/";
       };
       "auth.proxy" = {
         enabled = true;
@@ -96,7 +95,7 @@ in
         header_property = "username";
         headers = "Name:Tailscale-User-Name";
         auto_sign_up = false;
-        # tailscale serve connects from loopback.
+        # nginx (the LAN proxy) connects from loopback.
         whitelist = "127.0.0.1, ::1";
       };
       auth = {
@@ -124,9 +123,6 @@ in
         feedback_links_enabled = false;
       };
       news.news_feed_enabled = false;
-      # Live websockets check Origin against root_url; also allow the LAN
-      # proxy's name (modules/services/lan-proxy.nix).
-      live.allowed_origins = "https://grafana.salehtl.com";
     };
 
     provision = {
@@ -162,26 +158,4 @@ in
       fi
     done
   '';
-
-  # Same pattern as ledger-tailscale-serve, on its own HTTPS port.
-  systemd.services.grafana-tailscale-serve = {
-    description = "Serve Grafana to the tailnet over HTTPS";
-    after = [
-      "tailscaled.service"
-      "grafana.service"
-    ];
-    wants = [ "tailscaled.service" ];
-    wantedBy = [ "multi-user.target" ];
-    path = [ config.services.tailscale.package ];
-    unitConfig.StartLimitIntervalSec = 0;
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      Restart = "on-failure";
-      RestartSec = 10;
-      TimeoutStartSec = 60;
-    };
-    script = "tailscale serve --bg --https=${toString servePort} http://127.0.0.1:${toString grafanaPort}";
-    preStop = "tailscale serve --https=${toString servePort} off";
-  };
 }

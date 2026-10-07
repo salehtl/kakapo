@@ -77,6 +77,9 @@ let
   # tailscale-nginx-auth like Grafana, but without the identity header. For
   # apps with their own login that are too dangerous for the plain LAN.
   tailnetOnly = {
+    # ledger has no login of its own; this gate is its only access control
+    # (modules/services/ledger.nix).
+    ledger = ledgerPort;
     # T3 Code, when saleh has started it; agents run as saleh, who has
     # passwordless sudo (modules/services/t3code.nix).
     t3 = 3773;
@@ -245,6 +248,30 @@ in
   # `tailscale set` on every start, so this is the whole route config.
   services.tailscale.extraSetFlags = [ "--advertise-routes=${lanAddress}/32" ];
 
+  # Every app is reached through this proxy, so nothing may use `tailscale
+  # serve`: it would be a second route around tailscale-nginx-auth. tailscaled
+  # keeps serve config in its own state, outside this flake, so clear it at
+  # every boot. (On 2026-10-07 the per-app serve units were removed; their
+  # three preStops raced, and ledger's lost with "etag mismatch", leaving its
+  # mapping behind until this ran.)
+  systemd.services.tailscale-serve-reset = {
+    description = "Clear tailscale serve config (all ingress is the LAN proxy)";
+    after = [ "tailscaled.service" ];
+    wants = [ "tailscaled.service" ];
+    wantedBy = [ "multi-user.target" ];
+    path = [ config.services.tailscale.package ];
+    # tailscaled can take a while to come up at boot: keep retrying.
+    unitConfig.StartLimitIntervalSec = 0;
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      Restart = "on-failure";
+      RestartSec = 10;
+      TimeoutStartSec = 60;
+    };
+    script = "tailscale serve reset";
+  };
+
   # Re-runs on every boot and whenever the name list changes.
   systemd.services.lan-proxy-dns = {
     description = "Sync kakapo's public A records in Cloudflare DNS";
@@ -291,11 +318,11 @@ in
       assertion =
         lib.all (name: lib.elem name config.services.nginx.tailscaleAuth.virtualHosts) tailnetOnlyNames
         && !(lib.elem 3773 (lib.attrValues proxied));
-      message = "A tailnetOnly name (${lib.concatStringsSep ", " tailnetOnlyNames}) is served without tailscale-nginx-auth, or T3 Code's port is in `proxied`. T3 Code runs agents as saleh, who has passwordless sudo: on the plain LAN it would be one leaked pairing token from root.";
+      message = "A tailnetOnly name (${lib.concatStringsSep ", " tailnetOnlyNames}) is served without tailscale-nginx-auth, or T3 Code's port is in `proxied`. ledger has no login and holds financial data; T3 Code runs agents as saleh, who has passwordless sudo. Neither may be reachable from the plain LAN.";
     }
     {
       assertion = !(lib.elem ledgerPort (lib.attrValues proxied));
-      message = "ledger is proxied on the LAN. It holds financial data and is tailnet-only by policy (modules/services/ledger.nix); keep it on tailscale serve.";
+      message = "ledger is in `proxied`, which forwards without authentication. It has no login, holds financial data and is tailnet-only by policy (modules/services/ledger.nix); keep it in `tailnetOnly`.";
     }
   ];
 }

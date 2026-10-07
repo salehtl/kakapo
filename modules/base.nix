@@ -70,6 +70,12 @@
     dates = "04:00";
     flake = "github:salehtl/kakapo#${config.networking.hostName}";
     flags = [ "-L" ];
+    # The module defaults to Persistent=true, a catch-up run for a missed
+    # 04:00. On kakapo it fired mid-activation instead: on 2026-10-06 (after a
+    # clock jump) and on 2026-10-07 at 13:48 although 04:00 had already run,
+    # both times switching the host to master under a branch being tested.
+    # A missed night now waits for the next one.
+    persistent = false;
   };
 
   # Age-based generation pruning with a floor. `nix-collect-garbage

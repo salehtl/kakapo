@@ -12,6 +12,7 @@
     ../../modules/claude.nix
     ../../modules/notify.nix
     ../../modules/sops.nix
+    ../../modules/nodejs.nix
     ../../modules/services/adguard.nix
     ../../modules/services/immich.nix
     ../../modules/services/t3code.nix

@@ -73,7 +73,22 @@ let
   };
 
   # name -> extra nginx server directives, for apps the defaults don't fit.
+  # name -> 127.0.0.1 port, reachable only by tailnet devices: behind
+  # tailscale-nginx-auth like Grafana, but without the identity header. For
+  # apps with their own login that are too dangerous for the plain LAN.
+  tailnetOnly = {
+    # T3 Code, when saleh has started it; agents run as saleh, who has
+    # passwordless sudo (modules/services/t3code.nix).
+    t3 = 3773;
+  };
+  tailnetOnlyNames = map (name: "${name}.${zone}") (lib.attrNames tailnetOnly);
+
   serverExtra = {
+    # Agent sessions hold a websocket open for as long as a turn runs.
+    t3 = ''
+      proxy_read_timeout 1h;
+      proxy_send_timeout 1h;
+    '';
     # Phone backups upload whole videos in one request; stream them straight
     # through instead of buffering to disk, and allow slow links.
     photos = ''
@@ -148,7 +163,7 @@ let
     lib.nameValuePair "${name}.${zone}" (
       proxyVhost "http://127.0.0.1:${toString port}" // { extraConfig = serverExtra.${name} or ""; }
     )
-  ) proxied
+  ) (proxied // tailnetOnly)
   // lib.mapAttrs' (name: url: lib.nameValuePair "${name}.${zone}" (proxyVhost url)) lanUpstreams;
 
   names = lib.attrNames vhosts;
@@ -212,7 +227,7 @@ in
   services.nginx.tailscaleAuth = {
     enable = true;
     expectedTailnet = "marmoset-paradise.ts.net";
-    virtualHosts = [ "grafana.${zone}" ];
+    virtualHosts = [ "grafana.${zone}" ] ++ tailnetOnlyNames;
   };
 
   boot.kernel.sysctl."net.ipv4.ip_nonlocal_bind" = 1;
@@ -271,6 +286,12 @@ in
         && config.services.nginx.tailscaleAuth.expectedTailnet != ""
         && lib.elem "grafana.${zone}" config.services.nginx.tailscaleAuth.virtualHosts;
       message = "grafana.${zone} is served without tailscale-nginx-auth. Its vhost sets Tailscale-User-Login from $auth_user, so without the auth_request that header is empty or forgeable and Grafana's auth.proxy would hand out admin. Keep it in services.nginx.tailscaleAuth.virtualHosts with expectedTailnet set.";
+    }
+    {
+      assertion =
+        lib.all (name: lib.elem name config.services.nginx.tailscaleAuth.virtualHosts) tailnetOnlyNames
+        && !(lib.elem 3773 (lib.attrValues proxied));
+      message = "A tailnetOnly name (${lib.concatStringsSep ", " tailnetOnlyNames}) is served without tailscale-nginx-auth, or T3 Code's port is in `proxied`. T3 Code runs agents as saleh, who has passwordless sudo: on the plain LAN it would be one leaked pairing token from root.";
     }
     {
       assertion = !(lib.elem ledgerPort (lib.attrValues proxied));

@@ -72,6 +72,12 @@
       # modules/services/zapret.nix. Given once only: `tailscale set` rejects
       # a repeated flag.
       "--advertise-exit-node=${lib.boolToString config.services.zapret.enable}"
+      # Keep kakapo's own resolv.conf (networking.nameservers). Tailscale DNS,
+      # on by default, had put 100.100.100.100 there: kakapo's lookups then
+      # depended on tailscaled, and a tailnet DNS server pointed at AdGuard
+      # would have looped them through kakapo itself. The quad-100 resolver
+      # keeps serving *.ts.net to AdGuard regardless.
+      "--accept-dns=false"
     ];
   };
 

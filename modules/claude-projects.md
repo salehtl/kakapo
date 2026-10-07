@@ -51,8 +51,14 @@ the host.
 }
 ```
 
-- Run things inside it: `nix develop -c <command>` for one command, or
-  `nix develop` for a shell. Tools are fetched on first use and stay cached.
+- Next to the flake, commit an `.envrc` containing one line, `use flake`, and
+  run `direnv allow` once. direnv (with nix-direnv) then loads the devShell
+  whenever a shell enters the project, and keeps its tools from being
+  garbage-collected while the project exists.
+- Agents' shells are not interactive, so direnv does not load by itself.
+  Run every command through it: `direnv exec . <command>` (cached, fast), or
+  `nix develop -c <command>` where there is no `.envrc`. Tools are fetched on
+  first use and then stay cached.
 - Unfree packages and CUDA are enabled in the project's own flake, never on
   the host: `pkgs = import nixpkgs { system = "x86_64-linux"; config =
   { allowUnfree = true; cudaSupport = true; }; };`. The host carries only the
@@ -112,8 +118,9 @@ needs the user's go-ahead. Until then it only runs while someone runs it.
 ## 7. Cleaning up
 
 - Removing a project: `docker compose down -v` (if it used containers), then
-  `rm -rf ~/src/<name>`, then `nix store gc` to free its tools. The weekly GC
-  catches anything left over.
+  `rm -rf ~/src/<name>`, then `nix store gc` to free its tools. Deleting the
+  project deletes its `.direnv/`, which is what kept its tools alive; the
+  weekly GC catches anything left over.
 - Before you finish a session: nothing of yours still listening (`ss -ltnp`),
   no stray background processes, containers stopped, work committed and
   pushed, nothing changed outside the project.

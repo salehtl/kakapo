@@ -94,6 +94,12 @@
       "nvidia-settings"
       "nvidia-persistenced"
     ];
+  # Project dev environments (modules/claude-projects.md): a project's
+  # committed `.envrc` (`use flake`) loads its flake devShell on `cd`.
+  # nix-direnv (on by default) caches it and roots it against GC while the
+  # project's .direnv/ exists, so deleting the project frees its tools.
+  programs.direnv.enable = true;
+
   environment.systemPackages = [
     pkgs.unstable.claude-code
     pkgs.unstable.herdr

@@ -45,8 +45,16 @@ in
     # IPv4 + IPv6 forwarding. The LAN has no global IPv6, so forwarding v6
     # (which stops the kernel accepting RAs) costs kakapo no address.
     useRoutingFeatures = "server";
-    extraSetFlags = [ "--advertise-exit-node" ];
+    # The exit node itself is advertised by base.nix, from
+    # services.zapret.enable, so removing this module withdraws it.
   };
+
+  # An exit node always advertises ::/0, but kakapo has no IPv6 route out, so
+  # clients' IPv6 is dropped here ("no route"). Answer every such packet with
+  # ICMPv6 unreachable at once, so clients fall back to IPv4 instead of
+  # stalling: the default per-peer rate limit left ~10% unanswered.
+  # IPv6-only destinations stay unreachable through kakapo.
+  boot.kernel.sysctl."net.ipv6.icmp.ratelimit" = 0;
 
   services.zapret = {
     enable = true;

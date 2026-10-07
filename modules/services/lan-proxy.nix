@@ -4,15 +4,18 @@
 # Names:   One name per service directly under salehtl.com (plex.salehtl.com,
 #          not plex.home.salehtl.com). Never a DNS wildcard: *.salehtl.com
 #          would point every unlisted name on the domain, including any future
-#          public site, at a LAN address. The names come from `proxied` below
-#          and are published in three places that always agree:
-#            - AdGuard rewrites, so the LAN resolves them with the internet down.
+#          public site, at a LAN address. The names come from the lists below
+#          and are published in two places that always agree:
 #            - Public A records in Cloudflare, kept exact by lan-proxy-dns, for
 #              everything that does not ask AdGuard: tailnet devices away from
 #              home (the tailnet has no global nameserver, only MagicDNS) and
 #              devices at home using iCloud Private Relay or their own DoH. They
 #              reveal only a private address.
-#            - /etc/hosts, because kakapo never resolves through its own AdGuard.
+#            - /etc/hosts, for kakapo itself (it never resolves through its own
+#              AdGuard) and for the LAN: AdGuard answers from it
+#              (hostsfile_enabled), so the LAN resolves them with the internet
+#              down. Not AdGuard rewrites: those live in its settings, and
+#              every name change restarted the house's resolver (~3 s).
 # TLS:     One wildcard certificate, *.salehtl.com, from Let's Encrypt via the
 #          DNS-01 challenge on Cloudflare: nothing has to be reachable from the
 #          internet, and service names stay out of Certificate Transparency
@@ -72,7 +75,6 @@ let
     home = "http://10.0.0.10:8123";
   };
 
-  # name -> extra nginx server directives, for apps the defaults don't fit.
   # name -> 127.0.0.1 port, reachable only by tailnet devices: behind
   # tailscale-nginx-auth like Grafana, but without the identity header. For
   # apps with their own login that are too dangerous for the plain LAN.
@@ -86,7 +88,30 @@ let
   };
   tailnetOnlyNames = map (name: "${name}.${zone}") (lib.attrNames tailnetOnly);
 
+  # Every name behind tailscale-nginx-auth, and the ports behind them.
+  gatedNames = [ "grafana.${zone}" ] ++ tailnetOnlyNames;
+  gatedPorts = [ grafanaPort ] ++ lib.attrValues tailnetOnly;
+  # The tailnet as nginx-auth spells it: from the node's FQDN, so with the
+  # trailing dot. Without the dot every request is 403 (verified 2026-10-07).
+  tailnetName = "marmoset-paradise.ts.net.";
+  # nixpkgs' expectedTailnet only sends Expected-Tailnet to the backend, never
+  # to the /auth subrequest nginx-auth evaluates, so it checked nothing. Set
+  # it on /auth: nodes shared in from another tailnet then get 403.
+  tailnetGate = {
+    locations."/auth".extraConfig = ''
+      proxy_set_header Expected-Tailnet "${tailnetName}";
+    '';
+  };
+
+  # name -> extra nginx server directives, for apps the defaults don't fit.
+  # Applied to every list above. Directives only, never `location` blocks:
+  # those would sit outside tailscale-nginx-auth (see the assertions).
   serverExtra = {
+    # HA backups upload as one request, often hundreds of MB; nginx's 10m
+    # default answered 413 before HA saw them.
+    home = ''
+      client_max_body_size 0;
+    '';
     # Agent sessions hold a websocket open for as long as a turn runs.
     t3 = ''
       proxy_read_timeout 1h;
@@ -167,7 +192,10 @@ let
       proxyVhost "http://127.0.0.1:${toString port}" // { extraConfig = serverExtra.${name} or ""; }
     )
   ) (proxied // tailnetOnly)
-  // lib.mapAttrs' (name: url: lib.nameValuePair "${name}.${zone}" (proxyVhost url)) lanUpstreams;
+  // lib.mapAttrs' (
+    name: url:
+    lib.nameValuePair "${name}.${zone}" (proxyVhost url // { extraConfig = serverExtra.${name} or ""; })
+  ) lanUpstreams;
 
   names = lib.attrNames vhosts;
 
@@ -181,14 +209,14 @@ let
   };
 in
 {
-  services.adguardhome.settings.filtering.rewrites = map (name: {
-    domain = name;
-    answer = lanAddress;
-    # Defaults to false in AdGuard's schema: omit it and the rewrite is
-    # silently inert.
-    enabled = true;
-  }) names;
-
+  # The LAN gets these names from /etc/hosts through AdGuard (hostsfile_enabled),
+  # which watches the file, so a name change no longer restarts the resolver.
+  # Copied, not the default symlink into /etc/static: activation then replaces
+  # /etc/hosts itself, which AdGuard's watcher sees; the symlink never changes.
+  # Rewrites are declared empty so the ones from before are dropped
+  # (mutableSettings would otherwise keep them).
+  services.adguardhome.settings.filtering.rewrites = [ ];
+  environment.etc.hosts.mode = "0644";
   networking.hosts.${lanAddress} = names;
 
   security.acme = {
@@ -215,22 +243,23 @@ in
         ssl = true;
       }
     ];
-    virtualHosts = vhosts // {
-      # Unknown names get the TLS handshake refused rather than whichever
-      # vhost nginx would otherwise pick first.
-      "_" = {
-        default = true;
-        rejectSSL = true;
-      };
-    };
+    virtualHosts = lib.recursiveUpdate (
+      vhosts
+      // {
+        # Unknown names get the TLS handshake refused rather than whichever
+        # vhost nginx would otherwise pick first.
+        "_" = {
+          default = true;
+          rejectSSL = true;
+        };
+      }
+    ) (lib.genAttrs gatedNames (_: tailnetGate));
   };
 
-  # Identifies grafana.salehtl.com's callers; see grafanaVhost. expectedTailnet
-  # also refuses devices shared into the tailnet from another one.
+  # Identifies the callers of gatedNames; see grafanaVhost and tailnetGate.
   services.nginx.tailscaleAuth = {
     enable = true;
-    expectedTailnet = "marmoset-paradise.ts.net";
-    virtualHosts = [ "grafana.${zone}" ] ++ tailnetOnlyNames;
+    virtualHosts = gatedNames;
   };
 
   boot.kernel.sysctl."net.ipv4.ip_nonlocal_bind" = 1;
@@ -260,24 +289,35 @@ in
     wants = [ "tailscaled.service" ];
     wantedBy = [ "multi-user.target" ];
     path = [ config.services.tailscale.package ];
-    # tailscaled can take a while to come up at boot: keep retrying.
-    unitConfig.StartLimitIntervalSec = 0;
+    # tailscaled answers before it has a netmap after a cold start (boot, or a
+    # lock bump restarting it alongside this unit), and `serve reset` then
+    # fails with "netMap is nil". Retry inside the run: a Restart= loop left
+    # the unit in auto-restart, which switch-to-configuration counts as failed.
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      Restart = "on-failure";
-      RestartSec = 10;
-      TimeoutStartSec = 60;
+      TimeoutStartSec = 150;
     };
-    script = "tailscale serve reset";
+    script = ''
+      for _ in $(seq 60); do
+        tailscale serve reset 2>/dev/null && exit 0
+        sleep 2
+      done
+      tailscale serve reset
+    '';
   };
 
-  # Re-runs on every boot and whenever the name list changes.
+  # Re-runs on every boot and whenever the name list changes. Transient API or
+  # network errors are retried inside the run (curl, lan-proxy-dns.sh); what is
+  # left is a real problem (a hand-made record at a served name, a rotated
+  # token), mailed once. No Restart= loop: a unit sitting in auto-restart made
+  # every activation, the 04:00 upgrade included, report failure.
   systemd.services.lan-proxy-dns = {
     description = "Sync kakapo's public A records in Cloudflare DNS";
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
     wantedBy = [ "multi-user.target" ];
+    onFailure = [ "notify-failure@%n.service" ];
     environment = {
       ZONE = zone;
       ADDRESS = lanAddress;
@@ -286,12 +326,11 @@ in
       # still recognised as kakapo's.
       TAG = "Managed by github:salehtl/kakapo";
     };
-    unitConfig.StartLimitIntervalSec = 0;
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      Restart = "on-failure";
-      RestartSec = 300;
+      # Never hold up an activation for long on a stalled API.
+      TimeoutStartSec = 300;
       DynamicUser = true;
       LoadCredential = "token:${config.sops.secrets."acme/cloudflare_token".path}";
       ExecStart = lib.getExe dnsSync;
@@ -308,17 +347,53 @@ in
       message = "Grafana is in `proxied`, which forwards without authentication. Grafana trusts the Tailscale-User-Login header from loopback (auth.proxy), and nginx connects from loopback, so anyone on the LAN would be one forged header from admin. grafana.salehtl.com has its own vhost (grafanaVhost) behind tailscale-nginx-auth.";
     }
     {
+      # tailscaleAuth guards only `location /`, so a gated vhost may have
+      # nothing else: no extra location, no server-level `location`, and the
+      # tailnet check on /auth.
       assertion =
         config.services.nginx.tailscaleAuth.enable
-        && config.services.nginx.tailscaleAuth.expectedTailnet != ""
-        && lib.elem "grafana.${zone}" config.services.nginx.tailscaleAuth.virtualHosts;
-      message = "grafana.${zone} is served without tailscale-nginx-auth. Its vhost sets Tailscale-User-Login from $auth_user, so without the auth_request that header is empty or forgeable and Grafana's auth.proxy would hand out admin. Keep it in services.nginx.tailscaleAuth.virtualHosts with expectedTailnet set.";
+        && lib.all (
+          name:
+          let
+            v = config.services.nginx.virtualHosts.${name};
+          in
+          lib.elem name config.services.nginx.tailscaleAuth.virtualHosts
+          &&
+            lib.attrNames v.locations == [
+              "/"
+              "/auth"
+            ]
+          && lib.hasInfix "auth_request /auth;" v.locations."/".extraConfig
+          && lib.hasInfix ''Expected-Tailnet "${tailnetName}"'' v.locations."/auth".extraConfig
+          && !(lib.hasInfix "location" v.extraConfig)
+        ) gatedNames;
+      message = "A gated name (${lib.concatStringsSep ", " gatedNames}) is not fully behind tailscale-nginx-auth: it is missing from tailscaleAuth.virtualHosts, lacks the Expected-Tailnet check on /auth, or has a location outside the gated `/` (tailscaleAuth guards only `/`). Grafana hands out admin from a header, ledger has no login, and T3 Code runs agents as saleh, who has passwordless sudo.";
     }
     {
-      assertion =
-        lib.all (name: lib.elem name config.services.nginx.tailscaleAuth.virtualHosts) tailnetOnlyNames
-        && !(lib.elem 3773 (lib.attrValues proxied));
-      message = "A tailnetOnly name (${lib.concatStringsSep ", " tailnetOnlyNames}) is served without tailscale-nginx-auth, or T3 Code's port is in `proxied`. ledger has no login and holds financial data; T3 Code runs agents as saleh, who has passwordless sudo. Neither may be reachable from the plain LAN.";
+      # No other vhost may reach a gated app's port: not through `proxied`, a
+      # lanUpstreams URL, serverExtra, or a location added by another module.
+      assertion = lib.all (
+        name:
+        let
+          v = config.services.nginx.virtualHosts.${name};
+          text = lib.concatStringsSep "\n" (
+            [ v.extraConfig ]
+            ++ lib.concatMap (l: [
+              (if l.proxyPass == null then "" else l.proxyPass)
+              l.extraConfig
+            ]) (lib.attrValues v.locations)
+          );
+        in
+        !(lib.any (
+          port:
+          lib.any (line: builtins.match ".*:${toString port}([^0-9].*)?" line != null) (
+            lib.splitString "\n" text
+          )
+        ) gatedPorts)
+      ) (lib.subtractLists gatedNames (lib.attrNames config.services.nginx.virtualHosts));
+      message = "An ungated nginx vhost proxies to a gated app's port (${
+        lib.concatMapStringsSep ", " toString gatedPorts
+      }). That route skips tailscale-nginx-auth and exposes it to the plain LAN; gated apps belong in `tailnetOnly` (or grafanaVhost) only.";
     }
     {
       assertion = !(lib.elem ledgerPort (lib.attrValues proxied));

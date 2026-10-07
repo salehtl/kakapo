@@ -14,9 +14,12 @@
 
 api=https://api.cloudflare.com/client/v4
 
-# The token reaches curl through --config on a pipe, never argv.
+# The token reaches curl through --config on a pipe, never argv. Each call is
+# bounded and retries transient errors (network not up yet at boot, an API
+# blip), so the unit needs no Restart= loop.
 cf() {
-  curl -fsS --config <(printf 'header = "Authorization: Bearer %s"\n' "$(<"$CREDENTIALS_DIRECTORY/token")") \
+  curl -fsS --max-time 30 --retry 4 --retry-delay 10 --retry-all-errors \
+    --config <(printf 'header = "Authorization: Bearer %s"\n' "$(<"$CREDENTIALS_DIRECTORY/token")") \
     -H 'Content-Type: application/json' "$@"
 }
 

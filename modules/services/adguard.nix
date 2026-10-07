@@ -4,8 +4,8 @@
 #
 # State:   /var/lib/AdGuardHome/AdGuardHome.yaml (DynamicUser, 0600)
 #          Filter list copies live beside it and refresh on AdGuard's own timer.
-# Ingress: Web UI at https://kakapo.<tailnet>.ts.net:10000/ (tailnet) and
-#          https://adguard.salehtl.com (LAN, modules/services/lan-proxy.nix).
+# Ingress: Web UI at https://adguard.salehtl.com, LAN and tailnet
+#          (modules/services/lan-proxy.nix).
 #          DNS is :53 on the tailnet and the LAN -- see "Why :53 is open" below.
 # Login:   None, by Saleh's choice (2026-10-05): the UI is open to anyone on
 #          the LAN and tailnet. If one is ever wanted, never put the bcrypt
@@ -98,13 +98,14 @@ in
           "https://dns.quad9.net/dns-query"
           # Split DNS: tailnet names stay with MagicDNS, router-local names
           # stay with the router. Without these, putting the house on AdGuard
-          # would break both. The reverse zone is scoped to 10.0.0.0/24 rather
-          # than all of in-addr.arpa, which would send public PTR lookups to
-          # the router and get SERVFAIL.
+          # would break both. (LAN reverse lookups: local_ptr_upstreams below.)
           "[/${tailnetDomain}/]${magicDns}"
           "[/routerlocal/]${lanGateway}"
-          "[/0.0.10.in-addr.arpa/]${lanGateway}"
         ];
+        # PTR lookups for private addresses go only here, never to
+        # upstream_dns: the router knows its DHCP clients' names. Empty, they
+        # went to the host's resolvers and LAN hostnames never resolved.
+        local_ptr_upstreams = [ lanGateway ];
         # Plain IPs: needed to resolve the DoH hostnames above.
         bootstrap_dns = [
           "1.1.1.1"
@@ -121,6 +122,11 @@ in
           iotCidr
         ];
         ratelimit = 50;
+        # Per client. AdGuard's defaults (24 / 56) bucket a whole /24 together:
+        # on 2026-10-06 a PTR burst from the HA Yellow used up the LAN's shared
+        # 50 q/s and starved every other LAN client for ~10 minutes.
+        ratelimit_subnet_len_ipv4 = 32;
+        ratelimit_subnet_len_ipv6 = 128;
 
         enable_dnssec = true;
         cache_size = 67108864; # 64 MiB
@@ -159,10 +165,14 @@ in
     };
   };
 
-  # End-to-end check that the house's resolver answers a public name through
-  # the LAN address, every minute. Emails once after two consecutive failures
-  # and once on recovery, not every minute in between. kakapo itself resolves
-  # through 1.1.1.2, so the email still goes out while AdGuard is down.
+  # Check that the house's resolver answers a public name, every minute. The
+  # query runs over `lo` (kakapo asking its own address never touches the NIC
+  # or the interface-scoped firewall), so it is paired with the parts of the
+  # LAN path a loopback query skips: 10.0.0.215 on the LAN NIC, and the rule
+  # opening :53 there. Emails after two consecutive failures and once on
+  # recovery, not every minute in between; a mail that fails to send is
+  # retried on the next run. kakapo resolves independently of AdGuard, so the
+  # email still goes out while AdGuard is down.
   systemd.services.dns-health = {
     description = "Check that AdGuard answers DNS for the house";
     path = [
@@ -170,6 +180,8 @@ in
       pkgs.gnugrep
       pkgs.coreutils
       pkgs.msmtp
+      pkgs.iproute2
+      config.networking.firewall.package
       config.systemd.package
     ];
     serviceConfig = {
@@ -178,25 +190,42 @@ in
     };
     script = ''
       failing=/var/lib/dns-health/failing
+      alerted=/var/lib/dns-health/alerted
       mail() {
         printf 'To: salehtl@icloud.com\nFrom: salehtl@icloud.com\nSubject: [${config.networking.hostName}] %s\n\n%s\n' "$1" "$2" | msmtp -t
       }
-      if dig +short +time=3 +tries=2 @10.0.0.215 one.one.one.one A | grep -q '^[0-9]'; then
-        if [ -e "$failing" ]; then
-          [ "$(cat "$failing")" -ge 2 ] && mail "DNS recovered" "AdGuard on 10.0.0.215 is answering again."
-          rm "$failing"
+      problem=
+      if ! ip -4 -o addr show dev ${lanInterface} | grep -q ' 10\.0\.0\.215/'; then
+        problem="10.0.0.215 is not on ${lanInterface}"
+      elif ! iptables -C nixos-fw -i ${lanInterface} -p udp --dport 53 -j nixos-fw-accept 2>/dev/null; then
+        problem="the firewall does not open udp/53 on ${lanInterface}"
+      elif ! dig +short +time=3 +tries=2 @10.0.0.215 one.one.one.one A | grep -q '^[0-9]'; then
+        problem="AdGuard on 10.0.0.215 did not answer"
+      fi
+      if [ -z "$problem" ]; then
+        rm -f "$failing"
+        if [ -e "$alerted" ]; then
+          if mail "DNS recovered" "AdGuard on 10.0.0.215 is answering the house again."; then
+            rm "$alerted"
+          else
+            echo "recovery mail failed; retrying next run" >&2
+          fi
         fi
       else
         n=$(( $(cat "$failing" 2>/dev/null || echo 0) + 1 ))
         echo "$n" > "$failing"
-        echo "AdGuard did not answer (failure $n in a row)" >&2
-        if [ "$n" -eq 2 ]; then
-          mail "DNS is DOWN for the house" "AdGuard on 10.0.0.215 has not answered for 2 minutes.
+        echo "$problem (failure $n in a row)" >&2
+        if [ "$n" -ge 2 ] && [ ! -e "$alerted" ]; then
+          if mail "DNS is DOWN for the house" "$problem, $n checks in a row.
 
       Quickest recovery: sudo systemctl restart adguardhome
       Or point UniFi DHCP DNS back at 1.1.1.1 (Settings > Networks > Default).
 
-      $(systemctl status --no-pager adguardhome 2>&1 | head -20)"
+      $(systemctl status --no-pager adguardhome 2>&1 | head -20)"; then
+            touch "$alerted"
+          else
+            echo "alert mail failed; retrying next run" >&2
+          fi
         fi
       fi
     '';

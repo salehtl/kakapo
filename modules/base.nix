@@ -1,4 +1,9 @@
-{ config, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 {
   nix = {
     settings = {
@@ -59,8 +64,26 @@
     # recovery path when Tailscale or its control plane is unavailable, and
     # humaid's node (anoa) is not a principal in the tailnet SSH policy, so
     # Tailscale SSH alone would lock him out.
-    extraSetFlags = [ "--ssh" ];
+    extraSetFlags = [
+      "--ssh"
+      # Always explicit: `tailscale set` only changes the flags it is given,
+      # so a generation without the flag kept an earlier exit node advertised
+      # (and approved) with nothing declaring it. The exit node exists for
+      # modules/services/zapret.nix. Given once only: `tailscale set` rejects
+      # a repeated flag.
+      "--advertise-exit-node=${lib.boolToString config.services.zapret.enable}"
+    ];
   };
+
+  # Leftovers of modules/services/zapret.nix after it is removed: a firewall
+  # reload runs only the new generation's commands, so the mangle jump into
+  # its chain, and IPv6 forwarding, would stay until reboot. zapret.nix
+  # re-adds the jump after this, and its forwarding setting outranks this.
+  networking.firewall.extraCommands = lib.mkBefore ''
+    iptables -t mangle -D POSTROUTING -j kakapo-zapret 2>/dev/null || true
+    ip6tables -t mangle -D POSTROUTING -j kakapo-zapret 2>/dev/null || true
+  '';
+  boot.kernel.sysctl."net.ipv6.conf.all.forwarding" = lib.mkDefault false;
 
   networking.firewall.enable = true;
 
@@ -70,12 +93,13 @@
     dates = "04:00";
     flake = "github:salehtl/kakapo#${config.networking.hostName}";
     flags = [ "-L" ];
-    # The module defaults to Persistent=true, a catch-up run for a missed
-    # 04:00. On kakapo it fired mid-activation instead: on 2026-10-06 (after a
-    # clock jump) and on 2026-10-07 at 13:48 although 04:00 had already run,
-    # both times switching the host to master under a branch being tested.
-    # A missed night now waits for the next one.
-    persistent = false;
+    # Persistent (the module default) stays: a missed 04:00 runs at the next
+    # boot. Turning it off (2026-10-07) did not stop nixos-upgrade firing
+    # mid-activation, since the timer was already running and Persistent=
+    # only matters when a timer starts, and it froze the timer's stamp, so
+    # booting an older generation would have upgraded it straight back.
+    # The misfire is unexplained; scripts/guarded-test.sh exits 3 when it
+    # switches the host under a test.
   };
 
   # Age-based generation pruning with a floor. `nix-collect-garbage

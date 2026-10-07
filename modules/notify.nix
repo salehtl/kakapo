@@ -82,4 +82,39 @@ in
       Persistent = true;
     };
   };
+
+  # Email when kakapo's Tailscale node key is within three weeks of expiring.
+  # It lapses 180 days after login unless key expiry is disabled for kakapo in
+  # the admin console (Machines -> kakapo -> Disable key expiry), which is
+  # out-of-band. At expiry tailscaled drops every peer and route: Tailscale
+  # SSH, the 10.0.0.215/32 route, the exit node and tailscale-nginx-auth.
+  systemd.services.tailscale-key-expiry = {
+    description = "Fail if kakapo's Tailscale node key expires within 21 days";
+    onFailure = [ "notify-failure@%n.service" ];
+    path = [
+      config.services.tailscale.package
+      pkgs.jq
+    ];
+    serviceConfig.Type = "oneshot";
+    script = ''
+      expiry=$(tailscale status --json | jq -r '.Self.KeyExpiry // empty')
+      if [ -z "$expiry" ]; then
+        echo "key expiry is disabled for this node"
+        exit 0
+      fi
+      days=$(( ($(date -d "$expiry" +%s) - $(date +%s)) / 86400 ))
+      echo "Tailscale node key expires $expiry, in $days days"
+      if [ "$days" -lt 21 ]; then
+        echo "Disable key expiry for kakapo in the Tailscale admin console: Machines -> kakapo -> Disable key expiry"
+        exit 1
+      fi
+    '';
+  };
+  systemd.timers.tailscale-key-expiry = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "09:00";
+      Persistent = true;
+    };
+  };
 }

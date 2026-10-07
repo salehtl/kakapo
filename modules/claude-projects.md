@@ -67,7 +67,51 @@ the host.
   devShell. Their output stays in the project (`node_modules/`, `.venv/`,
   `target/`) and is gitignored, along with `result` and `.direnv/`.
 
-## 3. Dev servers and services
+## 3. Setting up an existing repository
+
+1. Clone it to `~/src/<name>` and read its README, CONTRIBUTING and any
+   `CLAUDE.md`/`AGENTS.md`. Those govern the code; this file governs the
+   machine.
+2. Use the repo's own environment if it has one (a `flake.nix` with an
+   x86_64-linux devShell, or devenv). Otherwise write a flake from what the
+   repo pins: `.nvmrc`/`.node-version`, `package.json` (`engines`,
+   `packageManager`), `.python-version`/`pyproject.toml`, `uv.lock`,
+   `rust-toolchain.toml`, `go.mod`, `.tool-versions`, `.ruby-version`,
+   `.devcontainer/`, a Dockerfile's `FROM`. Match major versions, use
+   `nixos-unstable` when 26.05 lacks one, and note any version you guessed.
+3. Where the flake goes depends on whose repo it is:
+   - The user's own repos (ask if unsure): `flake.nix`, `flake.lock` and
+     `.envrc` go in the repo and are committed like any change.
+   - Anyone else's: never add them to the repo. Put the flake in a sibling
+     directory, `~/src/<name>.nix/`, point the repo's `.envrc` at it
+     (`use flake ../<name>.nix`), and list `.envrc` and `.direnv/` in
+     `.git/info/exclude`. The repo's `git status` stays clean, so nothing can
+     leak into a commit or PR. A flake inside a git repo is invisible to Nix
+     until git tracks it ("is not tracked by Git"); never work around that
+     with `git add`, a `path:` flake or a global install.
+4. `direnv allow`, then install dependencies with the project's own tool:
+   `direnv exec . <command>`.
+5. Copy `.env.example` (or similar) to `.env` with local values. Ask the user
+   for real credentials; never commit them.
+6. If the repo has a compose file, publish its ports on loopback with an
+   untracked `compose.override.yaml` (excluded like `.envrc`). It needs
+   `!override`: without it Compose adds these ports to the original ones and
+   the `0.0.0.0` binding stays.
+
+   ```yaml
+   services:
+     db:
+       ports: !override ["127.0.0.1:55432:5432"]
+   ```
+
+   Dev servers that listen on all interfaces by default (Next.js, Django on
+   `0.0.0.0`, …) get their host option set to `127.0.0.1`.
+7. Done means proven: the project's install and tests (or build) pass through
+   `direnv exec .`, and `ss -ltnp` shows nothing of yours on `0.0.0.0`.
+   Report what you set up, what is committed and what stays local, and any
+   version you had to guess.
+
+## 4. Dev servers and services
 
 - Bind to `127.0.0.1`. Never `0.0.0.0` or `::`: Tailscale accepts all traffic
   from the tailnet ahead of the firewall, so anything listening on all
@@ -85,7 +129,7 @@ the host.
   (`127.0.0.1:5432:5432`, never `5432:5432`), prefix names with the project,
   and tear down with `docker compose down -v` when done.
 
-## 4. Privileges
+## 5. Privileges
 
 - No `sudo` for project work. The user has passwordless sudo, so a mistake
   here is a mistake as root on the house's DNS server.
@@ -96,7 +140,7 @@ the host.
 - Never read `/run/secrets` or other services' state (`/var/lib/*`). A
   project's own secrets go in a gitignored `.env`, never in the repo.
 
-## 5. Share the machine
+## 6. Share the machine
 
 8 cores / 16 threads and 32 GB are shared with the house's services, and
 nothing enforces limits yet.
@@ -108,19 +152,32 @@ nothing enforces limits yet.
 - The disk is large but not infinite; leave datasets and model weights out
   of `~/src` unless the project needs them, and say where you put them.
 
-## 6. From project to production
+## 7. From project to production
 
 A project that should run permanently becomes a NixOS module in the kakapo
 flake (`modules/services/<name>.nix`): branch, `scripts/guarded-test.sh`,
 merge to master, as `/etc/nixos/CLAUDE.md` describes. That is a deploy and
 needs the user's go-ahead. Until then it only runs while someone runs it.
 
-## 7. Cleaning up
+## 8. Cleaning up
 
-- Removing a project: `docker compose down -v` (if it used containers), then
-  `rm -rf ~/src/<name>`, then `nix store gc` to free its tools. Deleting the
-  project deletes its `.direnv/`, which is what kept its tools alive; the
-  weekly GC catches anything left over.
-- Before you finish a session: nothing of yours still listening (`ss -ltnp`),
-  no stray background processes, containers stopped, work committed and
-  pushed, nothing changed outside the project.
+At the end of every session (the project stays):
+
+- Stop what you started: dev servers, watchers and background jobs
+  (`ss -ltnp` shows nothing of yours), and containers (`docker compose stop`
+  keeps their data).
+- Commit and push work worth keeping. Nothing changed outside
+  `~/src/<name>` (and `~/src/<name>.nix`).
+
+When a project is finished for good (only when the user says so; if your
+tools will not delete a directory, give the user the commands instead):
+
+1. Check everything worth keeping is pushed: `git status`, `git log @{u}..`.
+2. `docker compose down -v --rmi local`: its containers, volumes and the
+   images built for it.
+3. Delete `~/src/<name>`, and `~/src/<name>.nix` if there is one.
+4. `nix store gc`. Deleting the project deleted its `.direnv/`, which is what
+   kept its tools alive; the weekly GC would get them anyway.
+
+Shared caches (npm, pnpm, uv, cargo, Docker's build cache) serve every
+project. Leave them alone unless the user asks.

@@ -18,11 +18,12 @@ in
     ## Working on a project, not the host?
 
     Projects live in `~/src/<name>`, and their rules are in
-    `/etc/claude-code/projects.md`. It loads automatically for any session under
-    `~/src` (it is linked there as `~/src/CLAUDE.md`); working on a project
-    anywhere else, read it first. In short: tools come from the project's own
-    flake, never the host; no sudo; bind `127.0.0.1`; never touch the host or
-    the kakapo flake from project work.
+    `/etc/claude-code/projects.md`. It loads automatically for any session
+    under `~/src` (it is linked there as `~/src/CLAUDE.md`). **Before cloning
+    or creating a project, or working on one from anywhere else, read it.** In
+    short: tools come from the project's own flake, never the host; no sudo;
+    bind `127.0.0.1`; never touch the host or the kakapo flake from project
+    work.
 
     ## Read this before changing anything
 

@@ -63,6 +63,17 @@
         import nixpkgs-unstable {
           inherit system;
           config.allowUnfreePredicate = pkg: nixpkgs.lib.getName pkg == "claude-code";
+          overlays = [
+            # claude-code's launcher prepends alsa-lib (audio) to
+            # LD_LIBRARY_PATH, and every command an agent runs inherits it:
+            # programs from other nixpkgs revisions then load that libasound
+            # and fail on a glibc mismatch (Chromium did, 2026-10-07). kakapo is
+            # headless with no audio, so give it an empty directory instead.
+            # Applied here so T3 Code's bundled claude-code gets it too.
+            (final: prev: {
+              claude-code = prev.claude-code.override { alsa-lib = final.emptyDirectory; };
+            })
+          ];
         };
       forAllSystems = f: nixpkgs.lib.genAttrs systems f;
       treefmtFor = system: treefmt-nix.lib.evalModule nixpkgs.legacyPackages.${system} ./treefmt.nix;

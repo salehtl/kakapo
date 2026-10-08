@@ -180,6 +180,7 @@ in
       pkgs.gnugrep
       pkgs.coreutils
       pkgs.msmtp
+      pkgs.curl
       pkgs.iproute2
       config.networking.firewall.package
       config.systemd.package
@@ -191,7 +192,11 @@ in
     script = ''
       failing=/var/lib/dns-health/failing
       alerted=/var/lib/dns-health/alerted
+      # Phone push (modules/services/ntfy.nix) and email; the return value is
+      # the email's, which decides whether the alert is retried.
       mail() {
+        curl -fsS --max-time 10 -o /dev/null -H "Title: [${config.networking.hostName}] $1" -H "Priority: high" \
+          --data-binary "$2" http://127.0.0.1:2586/kakapo || echo "ntfy push failed" >&2
         printf 'To: salehtl@icloud.com\nFrom: salehtl@icloud.com\nSubject: [${config.networking.hostName}] %s\n\n%s\n' "$1" "$2" | msmtp -t
       }
       problem=

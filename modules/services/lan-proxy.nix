@@ -85,6 +85,9 @@ let
     # T3 Code, when saleh has started it; agents run as saleh, who has
     # passwordless sudo (modules/services/t3code.nix).
     t3 = 3773;
+    # ntfy is open to whoever reaches it; this gate is its access control
+    # (modules/services/ntfy.nix).
+    ntfy = 2586;
   };
   tailnetOnlyNames = map (name: "${name}.${zone}") (lib.attrNames tailnetOnly);
 
@@ -111,6 +114,13 @@ let
     # default answered 413 before HA saw them.
     home = ''
       client_max_body_size 0;
+    '';
+    # Subscribers hold a stream open for hours; ntfy also takes attachments.
+    ntfy = ''
+      proxy_buffering off;
+      proxy_request_buffering off;
+      proxy_read_timeout 3h;
+      client_max_body_size 20M;
     '';
     # Agent sessions hold a websocket open for as long as a turn runs.
     t3 = ''

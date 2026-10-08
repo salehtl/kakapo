@@ -38,11 +38,18 @@ in
     serviceConfig.Type = "oneshot";
     path = [
       pkgs.msmtp
+      pkgs.curl
       config.systemd.package
     ];
     scriptArgs = "%i";
     script = ''
       unit="$1"
+      # Phone push first (modules/services/ntfy.nix); the email below goes out
+      # whether or not it worked.
+      curl -fsS --max-time 10 -o /dev/null \
+        -H "Title: [${config.networking.hostName}] $unit failed" -H "Priority: high" -H "Tags: warning" \
+        --data-binary "$(journalctl -u "$unit" -n 10 --no-pager -o cat)" \
+        http://127.0.0.1:2586/kakapo || echo "ntfy push failed" >&2
       {
         printf 'To: %s\nFrom: %s\nSubject: [%s] %s failed\n\n' \
           "${to}" "${to}" "${config.networking.hostName}" "$unit"

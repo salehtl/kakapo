@@ -82,7 +82,7 @@ let
     # ledger has no login of its own; this gate is its only access control
     # (modules/services/ledger.nix).
     ledger = ledgerPort;
-    # T3 Code, when saleh has started it; agents run as saleh, who has
+    # T3 Code (always on); agents run as saleh, who has
     # passwordless sudo (modules/services/t3code.nix).
     t3 = 3773;
     # ntfy is open to whoever reaches it; this gate is its access control

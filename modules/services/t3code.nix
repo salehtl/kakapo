@@ -1,28 +1,50 @@
-# T3 Code: a control plane for coding agents (Claude Code, Codex). Installed
-# like claude-code: no service, nothing listens until saleh starts it from an
-# SSH or Remote Control session:
+# T3 Code: a control plane for coding agents (Claude Code, Codex), run as an
+# always-on service so Saleh can drive kakapo from his phone or Mac. Agents run
+# as saleh, who has passwordless sudo, and unattended: Saleh's choice
+# (2026-10-09), since only he can reach it and Claude Code already has the
+# same reach.
 #
-#   t3 serve --host 127.0.0.1 --port 3773 ~/some-project
-#   t3 pair      # one-time link/QR to pair a phone or browser
-#
-# Never `--tailscale` / `--tailscale-serve`: nothing on kakapo uses tailscale
-# serve (every app is behind the LAN proxy), and it would add a second route
-# without the tailscale-nginx-auth gate. t3.salehtl.com is the HTTPS route.
-#
-# While it runs, tailnet devices reach it at https://t3.salehtl.com (the LAN
-# proxy's tailnet-only list, behind tailscale-nginx-auth); otherwise that name
-# returns 502. Agents run as saleh, who has passwordless sudo, so a paired
-# device is as sensitive as the YubiKey. Do not use T3 Connect, a cloud relay
-# that would make it reachable off the tailnet.
-#
+# Access:  https://t3.salehtl.com, tailnet devices only (the LAN proxy's
+#          tailnetOnly list, behind tailscale-nginx-auth), and then only paired
+#          devices. Pair one with `t3 pair` as saleh; revoke a lost one under
+#          Settings -> Connections. A paired device is as sensitive as the
+#          YubiKey. Never T3 Connect (a cloud relay off the tailnet), and never
+#          `--tailscale`/`--tailscale-serve`: a second route without the gate.
 # Package: pkgs.unstable.t3code, updated by the weekly flake bump; `t3 update`
 #          and `t3 service install` are the upstream installer's way and do
 #          not apply here.
 # State:   ~/.t3 (threads, projects, settings, paired devices).
+# Ports:   127.0.0.1:3773 only.
 { pkgs, ... }:
+let
+  t3code = pkgs.unstable.t3code.override { enableClaude = true; };
+in
 {
-  environment.systemPackages = [ (pkgs.unstable.t3code.override { enableClaude = true; }) ];
+  systemd.services.t3code = {
+    description = "T3 Code server";
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
+    wantedBy = [ "multi-user.target" ];
+    environment = {
+      HOME = "/home/saleh";
+      # Product usage events to PostHog are on by default.
+      T3CODE_TELEMETRY_ENABLED = "false";
+      # Agents run arbitrary commands: give them saleh's normal PATH (sudo from
+      # /run/wrappers, then per-user and system packages), not systemd's
+      # minimal one.
+      PATH = pkgs.lib.mkForce "/run/wrappers/bin:/etc/profiles/per-user/saleh/bin:/run/current-system/sw/bin:${t3code}/bin";
+    };
+    serviceConfig = {
+      User = "saleh";
+      Group = "users";
+      WorkingDirectory = "/home/saleh";
+      ExecStart = "${t3code}/bin/t3 serve --mode web --no-browser --host 127.0.0.1 --port 3773 /home/saleh";
+      Restart = "on-failure";
+      RestartSec = 5;
+    };
+  };
 
-  # Product usage events to PostHog are on by default.
+  # `t3 pair`, `t3 project` and friends for saleh's shells.
+  environment.systemPackages = [ t3code ];
   environment.variables.T3CODE_TELEMETRY_ENABLED = "false";
 }

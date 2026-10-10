@@ -6,14 +6,36 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Single-host NixOS flake for the `kakapo` server (x86_64-linux, AMD, headless). The flake's load-bearing output is `nixosConfigurations.kakapo`; it also exposes `formatter.<system>` and `checks.<system>.formatting` for `nix fmt` and the formatter gate, on `x86_64-linux` (CI) and `aarch64-darwin` (local Mac dev).
 
+## Making a change: pull requests only
+
+Since 2026-10-10, **nothing is pushed to `master` directly.** `master` is what kakapo runs (`system.autoUpgrade` deploys it at 04:00), and several agents may be working on this repo and this host at the same time, so every change goes through a pull request that Saleh merges. A GitHub ruleset on `master` (repo Settings → Rules → Rulesets → `master`) enforces it: no direct pushes, force-pushes or deletion; changes land only by a squash-merged PR; the `check` and `build` CI jobs must pass; and the branch must be up to date with `master`. With the ruleset in place, CI is a real gate rather than advice.
+
+The ruleset cannot tell an agent from Saleh: agents push with Saleh's own GitHub credentials, so `gh pr merge` would work for them too. **Agents never merge a PR**, by any route (`gh pr merge`, the API, editing the ruleset). Merging is a deploy, and it is Saleh's call. No approving review is required, because GitHub does not let an account approve its own PR; Saleh pressing merge is the approval.
+
+For every change:
+
+1. **Work in a clone of your own**, never in `/etc/nixos` (a shared reference checkout) or another agent's clone: `git clone git@github.com:salehtl/kakapo.git` into your scratchpad, then `git switch -c <short-descriptive-branch> origin/master`. One branch and one PR per change; keep them small so they merge quickly and rarely conflict.
+2. **Change, `nix fmt`, build** the toplevel (`nix build --no-link --print-out-paths .#nixosConfigurations.kakapo.config.system.build.toplevel`), and check `nix store diff-closures /run/current-system <out>` shows only what you meant.
+3. **Test on the host with `scripts/guarded-test.sh <out>`**, never a bare `nixos-rebuild test`/`switch` or `switch-to-configuration`. The script holds a host-wide lock, so only one agent's activation runs at a time: a second caller waits (up to 15 minutes, then exits 5) instead of replacing the first one's system mid-check. Exit 3 means something outside the script replaced your system during the check; re-run it.
+4. **Commit, push the branch, open the PR**: `gh pr create --base master`. The body says what changed and why, how it was tested (closure diff, guarded-test result), and anything Saleh must do out of band. Then stop and give Saleh the PR link.
+5. **Keep it mergeable.** If `master` moves first, the ruleset blocks the merge until the branch is up to date: `git fetch && git rebase origin/master`, resolve conflicts, re-run `nix fmt` and the build (and guarded-test again if what the host would run changed), then `git push --force-with-lease`. Force-push only your own branch. Conflicts are mostly in `CLAUDE.md` (most changes add a note), the package lists and `flake.lock`: keep both sides' intent, and never hand-merge `flake.lock` — take `master`'s and re-run the `nix flake update <input>` your change needs.
+6. **After Saleh merges**, kakapo picks it up at 04:00. If he asks for it sooner, build `github:salehtl/kakapo#kakapo` with `--refresh`, guarded-test it, then make it the boot default (`sudo nix-env -p /nix/var/nix/profiles/system --set <out>` and `sudo <out>/bin/switch-to-configuration boot`); otherwise a reboot before 04:00 boots the old generation.
+7. **If a PR is closed unmerged** after you test-activated it, put the host back on `master` the same way (build, guarded-test), so the house is not running an unmerged change until 04:00.
+
+A test activation stays live until the next activation or 04:00, so after several agents test, the host runs whichever went last. Each test was still valid (it ran under the lock), but say in the PR that the host may currently be running your branch.
+
+A broken `master` is fixed the same way: open a revert PR (`git revert <sha>`) and tell Saleh it must be merged before 04:00.
+
+The weekly `flake.lock` bump PR is opened by `update-flake-lock.yml` with `GITHUB_TOKEN`, and GitHub does not run `check` on PRs opened that way. That workflow validates the exact commit it opens the PR with (`nix flake check` and a full kakapo build) and posts the `check` and `build` statuses on it itself, so it can merge. If `master` has moved since, pressing "Update branch" on the PR is a push by Saleh, and that runs the real CI.
+
 ## Common commands
 
-Rebuild the system (run on the host, from this flake dir or with `--flake <path>`):
+Build and test a change on the host (see above; activations go through `guarded-test.sh`, never a bare `nixos-rebuild`):
 
 ```sh
-sudo nixos-rebuild switch --flake .#kakapo   # apply now + set as default
-sudo nixos-rebuild test   --flake .#kakapo   # apply without making it default
-sudo nixos-rebuild boot   --flake .#kakapo   # stage for next boot only
+out=$(nix build --no-link --print-out-paths .#nixosConfigurations.kakapo.config.system.build.toplevel)
+nix store diff-closures /run/current-system "$out"   # what would change
+scripts/guarded-test.sh "$out"                       # activate (not default), watch, roll back on failure
 ```
 
 Evaluate/validate without a host:
@@ -31,9 +53,9 @@ nix flake update                             # bump flake.lock (nixpkgs)
 nix eval --raw .#nixosConfigurations.kakapo.config.system.build.toplevel.drvPath
 ```
 
-Note: `modules/base.nix` enables `system.autoUpgrade` pointing at `github:salehtl/kakapo#${config.networking.hostName}` at 04:00 daily (no auto-reboot). Whatever is on `master` at upgrade time is what the host runs — push with care.
+Note: `modules/base.nix` enables `system.autoUpgrade` pointing at `github:salehtl/kakapo#${config.networking.hostName}` at 04:00 daily (no auto-reboot). Whatever is on `master` at upgrade time is what the host runs, so changes reach it only through a merged pull request (see above).
 
-CI (`.github/workflows/check.yml`) runs two jobs on every push to master and on PRs. `check` runs `nix flake lock --no-update-lock-file` and then `nix flake check`, which evaluates `nixosConfigurations.kakapo` and runs the formatter check but does **not** build anything. `build` builds the kakapo toplevel, which is the only CI step that catches compile failures and bad hashes; it is a separate job because a cold run compiles the unfree NVIDIA driver, which cache.nixos.org never carries. CI is **advisory, not enforcing** — without GitHub branch protection requiring `check` to pass, `system.autoUpgrade` will pull master regardless of red checks. Treat a red CI run on master as an emergency: fix or revert before 04:00.
+CI (`.github/workflows/check.yml`) runs two jobs on every push to master and on PRs. `check` runs `nix flake lock --no-update-lock-file` and then `nix flake check`, which evaluates `nixosConfigurations.kakapo` and runs the formatter check but does **not** build anything. `build` builds the kakapo toplevel, which is the only CI step that catches compile failures and bad hashes; it is a separate job because a cold run compiles the unfree NVIDIA driver, which cache.nixos.org never carries. Both are **required** status checks on `master` (the ruleset above), so a PR cannot merge while either is red or missing. The ruleset depends on the job names: renaming `check` or `build` in the workflow leaves every PR waiting on a check that never reports, so change the ruleset in the same PR. A red run on `master` itself is still an emergency: open a revert PR and get it merged before 04:00.
 
 ## Architecture
 
@@ -93,7 +115,7 @@ When adding a new host, create `hosts/<name>/{default.nix,hardware.nix}`, add a 
 ssh saleh@<kakapo> 'sudo nixos-rebuild switch --flake github:salehtl/kakapo#kakapo --refresh'
 ```
 
-`--refresh` bypasses the flake-eval cache so the latest master is fetched. To verify a feature branch *before* merging, point at it directly: `--flake github:salehtl/kakapo/<branch>#kakapo`. Use `nixos-rebuild test` instead of `switch` to activate without registering as the default boot — handy for verification, reverts on reboot.
+`--refresh` bypasses the flake-eval cache so the latest master is fetched. Only do this for a change that is already merged, and only when Saleh asks; an agent applying it should build master and use `scripts/guarded-test.sh` plus the boot-default step instead of a bare `switch`. To verify a branch *before* merging, build it from your clone (or `nix build github:salehtl/kakapo/<branch>#nixosConfigurations.kakapo.config.system.build.toplevel --refresh`) and run `scripts/guarded-test.sh` on the result.
 
 A `test` activation used to be reverted within seconds: `nixos-upgrade.timer` was `Persistent` and fired during activations (2026-10-06, and 2026-10-07 even though 04:00 had already run), switching the host to master. The cause is not established: the timer was already running and had fired at 04:00, and turning `Persistent` off (briefly, on 2026-10-07) neither explains nor prevents it. `scripts/guarded-test.sh` exits 3 if the system it activated is no longer the running one; re-run the test. After a test passes and the change is on master, make it the boot default as well (`nix-env -p /nix/var/nix/profiles/system --set <out>` then `<out>/bin/switch-to-configuration boot`), or the next reboot boots the old generation.
 
@@ -118,7 +140,7 @@ kakapo runs the ledger commit pinned in `flake.lock`. Before bumping, make sure 
 ```sh
 nix flake update ledger                      # pin salehtl/ledger main
 nix flake check                              # same as CI
-git commit -am "ledger: bump to <short rev>" && git push   # applied at 04:00
+git commit -am "ledger: bump to <short rev>"   # on a branch; then push it and open a PR (applied at 04:00 after merge)
 ```
 
 To apply now, use the force-upgrade recipe above. The unit copies `ledger.db` to `/var/lib/ledger/backups/before-<build>.db` before a new build first opens it, so there is no manual backup step. Check that the new build is the one running:
@@ -154,7 +176,7 @@ export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt"
 3. Import the module from `hosts/kakapo/default.nix`.
 4. Declare any persistent state under `/var/lib/<app>` and note its path in the module's comment header — useful when storage layout changes later.
 5. Give it a name. For anything the whole house should reach, add `<name> = <port>;` to `proxied` (and any extra nginx directives to `serverExtra`) in `modules/services/lan-proxy.nix`; it becomes `https://<name>.salehtl.com` on the LAN and tailnet, DNS record included. For tailnet-only apps, add it to `tailnetOnly` instead (gated by tailscale-nginx-auth). Since 2026-10-07 nothing uses `tailscale serve`, and the `tailscale-serve-reset` oneshot (lan-proxy.nix) clears its config at every boot, so every app has one route and one gate.
-6. Push to a feature branch, build it, verify with `scripts/guarded-test.sh <built system>` (name changes touch DNS), merge, then make it the boot default.
+6. Follow "Making a change" above: branch, build, verify with `scripts/guarded-test.sh <built system>` (name changes touch DNS), open a PR. Once Saleh merges, make it the boot default.
 
 kakapo has no public ingress: Forgejo (`git.sirdab.ae`), the public nginx, Postgres and the Cloudflare Tunnel (`cloudflared`) were removed on 2026-10-03. The nginx in `lan-proxy.nix` (2026-10-05) is LAN-only and is not public ingress. A public app would need a new tunnel and token, and a Cloudflare Access policy for anything private.
 
@@ -196,4 +218,5 @@ kakapo has no public ingress: Forgejo (`git.sirdab.ae`), the public nginx, Postg
 - Secrets live in `secrets/<service>.yaml` (encrypted via sops), one file per service. Edit with `sops secrets/<service>.yaml`; declare each new secret in `modules/sops.nix` with its `sopsFile` and `restartUnits` pointing at any service that consumes it.
 - `users.mutableUsers = false` — never `useradd`/`passwd` on the host; the flake is the only path. `wheelNeedsPassword = false` because `saleh` has no declared password (SSH key is the sole auth factor).
 - The three host-level `assertions` are guardrails, not ceremony. Don't weaken them — if one fires, the underlying config is wrong, not the assertion.
-- `nix fmt` before committing. CI's `nix flake check` will fail on unformatted code.
+- `nix fmt` before committing. CI's `nix flake check` will fail on unformatted code, and a red `check` blocks the merge.
+- Never push to `master` and never merge a PR; open one and let Saleh merge it (see "Making a change").

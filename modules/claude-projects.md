@@ -156,8 +156,9 @@ nothing enforces limits yet.
 
 A project that should run permanently becomes a NixOS module in the kakapo
 flake (`modules/services/<name>.nix`): branch, `scripts/guarded-test.sh`,
-merge to master, as `/etc/nixos/CLAUDE.md` describes. That is a deploy and
-needs the user's go-ahead. Until then it only runs while someone runs it.
+pull request, as "Making a change" in `/etc/nixos/CLAUDE.md` describes. Never
+push to the flake's `master` or merge the PR yourself: merging is a deploy, and
+the user does it. Until then it only runs while someone runs it.
 
 ## 8. Cleaning up
 

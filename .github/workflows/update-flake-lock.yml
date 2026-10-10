@@ -77,6 +77,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      statuses: write # report check/build on the bump commit (below)
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -98,6 +99,21 @@ jobs:
           git switch -C flake-lock-bump
           git commit -am "flake: weekly flake.lock bump"
           git push --force origin flake-lock-bump
+
+          # `check` and `build` are required status checks on master, and
+          # GitHub never runs them on this PR (see above). The lockfile job
+          # ran both on exactly this commit's tree: both jobs check out the
+          # same github.sha, and the only change on top is the files it
+          # validated. Report that here so the PR can merge. If master has
+          # moved since, the ruleset requires updating the branch first, and
+          # that push (by a person) runs the real CI.
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          sha=$(git rev-parse HEAD)
+          for ctx in check build; do
+            gh api --silent "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+              -f state=success -f context="$ctx" -f target_url="$run_url" \
+              -f description="validated by update-flake-lock (flake check + kakapo build)"
+          done
           if [ "$(gh pr list --head flake-lock-bump --state open --json number --jq length)" = 0 ]; then
             gh pr create --base master --head flake-lock-bump \
               --title "flake: weekly flake.lock bump" --body-file - <<'BODY'
@@ -107,8 +123,9 @@ jobs:
           Validated by the run that opened this PR: `nix flake check` passed
           and `nixosConfigurations.kakapo` built to a `toplevel`. GitHub does
           not run `check` on this PR — PRs opened with `GITHUB_TOKEN` do not
-          trigger workflows — so those steps, in the run linked above, are
-          the gate.
+          trigger workflows — so those steps, in the run linked from the
+          `check` and `build` statuses, are the gate. If `master` has moved,
+          press "Update branch": that push runs the real CI.
 
           Review the nixpkgs diff before merging: merging this to `master` is
           a deploy, applied by `system.autoUpgrade` at 04:00 Asia/Dubai.

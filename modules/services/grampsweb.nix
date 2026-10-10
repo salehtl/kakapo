@@ -12,8 +12,16 @@
 # State:  /var/lib/grampsweb/<volume>, bind-mounted: the family tree database
 #         (grampsdb), users, media, search index, caches, and the Flask secret
 #         (generated on first start).
+# Mail:   iCloud SMTP as salehtl@icloud.com with its own app-specific
+#         password (secrets/grampsweb.yaml). Leave the email fields in the
+#         web UI empty: values saved there override these.
 # Ports:  127.0.0.1:5000 only.
-{ lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   image = "ghcr.io/gramps-project/grampsweb:26.10.0@sha256:27017b77784ebc8fe9b4b84e3baab8fa529f1f715f4691bc5d1979b874c216ec";
   valkey = "docker.io/valkey/valkey:8-alpine@sha256:081c2f5cb575efc901aa80ff9cdbd1ec6a301682fd35e1ebb4b0990a4a4a8507";
@@ -39,7 +47,18 @@ let
       GRAMPSWEB_CELERY_CONFIG__broker_url = "redis://grampsweb-redis:6379/0";
       GRAMPSWEB_CELERY_CONFIG__result_backend = "redis://grampsweb-redis:6379/0";
       GRAMPSWEB_RATELIMIT_STORAGE_URI = "redis://grampsweb-redis:6379/1";
+      # Outgoing mail (registration, new-user notices, password resets) via
+      # iCloud SMTP, which only sends as the account's own address. Port 587
+      # needs STARTTLS set explicitly: Gramps Web's default (EMAIL_USE_TLS)
+      # means implicit TLS. Values set in the web UI's settings override these.
+      GRAMPSWEB_EMAIL_HOST = "smtp.mail.me.com";
+      GRAMPSWEB_EMAIL_PORT = "587";
+      GRAMPSWEB_EMAIL_USE_STARTTLS = "true";
+      GRAMPSWEB_EMAIL_HOST_USER = "salehtl@icloud.com";
+      GRAMPSWEB_DEFAULT_FROM_EMAIL = "salehtl@icloud.com";
     };
+    # GRAMPSWEB_EMAIL_HOST_PASSWORD (secrets/grampsweb.yaml, modules/sops.nix).
+    environmentFiles = [ config.sops.secrets."grampsweb/env".path ];
   };
 in
 {

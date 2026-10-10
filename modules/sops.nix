@@ -19,6 +19,19 @@ _: {
       key = "notify/smtp_password";
     };
 
+    # Gramps Web's outgoing mail (modules/services/grampsweb.nix): its own iCloud
+    # app-specific password, as GRAMPSWEB_EMAIL_HOST_PASSWORD=... for the
+    # containers' environment file. Separate from notify's, so either can be
+    # revoked alone.
+    secrets."grampsweb/env" = {
+      sopsFile = ../secrets/grampsweb.yaml;
+      key = "grampsweb/env";
+      restartUnits = [
+        "docker-grampsweb.service"
+        "docker-grampsweb-celery.service"
+      ];
+    };
+
     # Cloudflare API token for the *.salehtl.com DNS-01 challenge
     # and the public A records (modules/services/lan-proxy.nix): Zone:DNS:Edit +
     # Zone:Read on salehtl.com. Read at each use, so nothing needs restarting.

@@ -105,6 +105,7 @@
     pkgs.unstable.claude-code
     pkgs.unstable.herdr
     pkgs.cf
+    pkgs.gh
   ];
 
   # Deliberately every interface, not just tailscale0. Tailscale is the sole

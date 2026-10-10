@@ -14,6 +14,7 @@
     ../../modules/sops.nix
     ../../modules/nodejs.nix
     ../../modules/services/adguard.nix
+    ../../modules/services/grampsweb.nix
     ../../modules/services/immich.nix
     ../../modules/services/t3code.nix
     ../../modules/services/lan-proxy.nix

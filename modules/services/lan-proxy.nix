@@ -63,6 +63,8 @@ let
     adguard = config.services.adguardhome.port;
     # Immich has its own accounts (modules/services/immich.nix).
     photos = config.services.immich.port;
+    # Gramps Web has its own accounts (modules/services/grampsweb.nix).
+    gw = 5000;
   };
 
   # name -> another machine on the LAN. Its traffic leaves kakapo from
@@ -121,6 +123,12 @@ let
       proxy_request_buffering off;
       proxy_read_timeout 3h;
       client_max_body_size 20M;
+    '';
+    # Family tree imports (GEDCOM, .gramps) and media arrive in one request.
+    gw = ''
+      client_max_body_size 500M;
+      proxy_read_timeout 600s;
+      proxy_send_timeout 600s;
     '';
     # Agent sessions hold a websocket open for as long as a turn runs.
     t3 = ''

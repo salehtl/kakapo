@@ -47,21 +47,39 @@ in
 
     `system.autoUpgrade` runs `nixos-rebuild switch` against
     `github:salehtl/kakapo#${host}` **daily at 04:00**. Whatever is on `master`
-    then is what this host runs. CI is advisory and will not block a bad push.
+    then is what this host runs.
 
-    - Editing files on the host deploys nothing. Changes land by pushing `master`.
-    - `nixos-rebuild test` activates without becoming default: it reverts on
-      reboot and is overwritten at 04:00. Use it to verify, never to finish.
-      Installing something this way looks like success and silently vanishes.
+    **Every change is a pull request; nobody pushes to `master`.** Several
+    agents may be working on this flake and this host at once. A GitHub
+    ruleset blocks direct pushes to `master` and requires the `check` and
+    `build` CI jobs to pass and the branch to be up to date before a merge.
+    **Never merge a PR yourself** (`gh pr merge`, the API, or by editing the
+    ruleset), even though your credentials would allow it: merging is a deploy,
+    and it is Saleh's call. The full workflow, including resolving conflicts,
+    is "Making a change" in `/etc/nixos/CLAUDE.md`. In short:
+
+    1. Clone the repo into your own scratchpad (never work in `/etc/nixos`)
+       and branch off `origin/master`.
+    2. Change, `nix fmt`, build the toplevel.
+    3. Test with `scripts/guarded-test.sh <built system>`, never a bare
+       `nixos-rebuild test`/`switch`. It locks the host so only one agent's
+       activation runs at a time.
+    4. Push the branch, `gh pr create --base master`, give Saleh the link,
+       and stop there.
+    5. If `master` moves first, rebase, re-test and force-push your own branch.
+
+    - Editing files on the host deploys nothing. Changes land when Saleh
+      merges a PR into `master`.
+    - A test activation (what `guarded-test.sh` does) does not become the
+      default: it reverts on reboot and is overwritten at 04:00. Use it to
+      verify, never to finish. Installing something this way looks like
+      success and silently vanishes.
     - `nixos-rebuild switch` persists across reboot, but `master` still replaces
-      it at 04:00.
-    - Verify a branch before merging:
-
-          sudo nixos-rebuild test --flake github:salehtl/kakapo/<branch>#${host} --refresh
-
-    - Pushing to `master` is a deploy. Treat it as one.
+      it at 04:00. Do not use it to ship a change; open a PR.
+    - Merging into `master` is a deploy. Treat it as one.
     - autoUpgrade only builds what `flake.lock` pins. It never moves the lock,
-      so nixpkgs stays frozen until someone runs `nix flake update` and pushes.
+      so nixpkgs stays frozen until a `flake.lock` bump PR is merged (a
+      workflow opens one every Monday).
     - It can fail every night with nothing to show for it. A `flake.lock` that
       needed updating broke it from 2026-06-01 to 2026-10-03 — 250 failed runs,
       no alert. Before assuming this host is current, check:

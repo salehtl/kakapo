@@ -9,6 +9,21 @@
 #   scripts/guarded-test.sh "$out"
 set -u
 new=$(readlink -f "${1:?usage: guarded-test.sh <system store path>}")
+
+# One activation at a time. Several agents can work on kakapo at once, each
+# testing its own branch on the one live host; without this, a second test
+# activates mid-way through the first's watch window and the first reports a
+# clean test of a system that was replaced under it. Every test goes through
+# this script, so the lock serializes them all. A lock on a read-only fd is
+# enough for flock, so a file created by another user still works.
+lock=/tmp/kakapo-guarded-test.lock
+[ -e "$lock" ] || (umask 022 && : >"$lock")
+exec 9<"$lock"
+if ! flock -n 9; then
+  echo "another guarded-test.sh is running; waiting for it (up to 15 min)" >&2
+  flock -w 900 9 || { echo "gave up waiting for the guarded-test lock" >&2; exit 5; }
+fi
+
 prev=$(readlink /run/current-system)
 dig=$(nix build --no-link --print-out-paths 'nixpkgs#dnsutils^dnsutils')/bin/dig
 lan=enp4s0 # the LAN NIC (modules/services/adguard.nix, lan-proxy.nix)

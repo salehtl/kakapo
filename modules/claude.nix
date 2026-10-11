@@ -121,6 +121,14 @@ in
   # ~/src/CLAUDE.md reaches every session started in a project there,
   # including T3 Code's agents, without loading it into host sessions.
   environment.etc."claude-code/projects.md".source = ./claude-projects.md;
+  # Claude desktop's SSH sessions upload a generic linux-x64 Claude Code build
+  # to ~/.claude/remote/ccd-cli and run it there. NixOS's stub
+  # /lib64/ld-linux-x86-64.so.2 refuses unpatched binaries, so the app fails
+  # with "installed cli ... is not runnable" (2026-10-11). nix-ld provides a
+  # real loader for them (closure: +nix-ld 68 KiB, +libssh from its default
+  # library set, -stub-ld). The host's own claude-code (from pkgs.unstable) is unaffected.
+  programs.nix-ld.enable = true;
+
   systemd.tmpfiles.rules = lib.concatMap (u: [
     "d ${u.home}/src 0755 ${u.name} ${u.group} -"
     "L+ ${u.home}/src/CLAUDE.md - - - - /etc/claude-code/projects.md"

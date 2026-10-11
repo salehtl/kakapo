@@ -68,6 +68,10 @@ in
     enable = true;
 
     authKeyFile = secret "auth_key"; # spec 01 §4.11; generated once, never rotated in the beta
+    # The password salt key (spec 01 §4.11): a separate 32-byte value, never
+    # equal to auth_key and NEVER rotated (serve records its fingerprint on
+    # first start and refuses a different one).
+    saltKeyFile = secret "salt_key";
 
     email = lib.mkIf (cloudflareAccountId != null) {
       inherit cloudflareAccountId;

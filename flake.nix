@@ -30,6 +30,15 @@
       url = "github:salehtl/ledger";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # Hasala's QA backend (modules/services/hasala.nix), for its NixOS module.
+    # Pinned to a commit, not a branch: `nix flake update` cannot move a rev,
+    # so the weekly lock bump never deploys unreleased hasala work. Releasing
+    # to QA is a PR that changes this rev to a CI-green commit of hasala main.
+    # (hasala's infra/qa/HOST-PR.md suggests a release branch such as `qa`;
+    # none exists yet, and once one does it can replace the rev.)
+    # Deliberately NO `follows`: the host runs exactly the closure hasala's CI
+    # built and tested (its own nixos-26.05 lock, Go 1.27 from nixos-unstable).
+    hasala.url = "github:salehtl/hasala/02069d3b0602525eb33b9937c6f75ae048e6df5a";
   };
 
   outputs =
@@ -40,6 +49,7 @@
       treefmt-nix,
       sops-nix,
       ledger,
+      hasala,
       ...
     }:
     let
@@ -85,6 +95,7 @@
           ./hosts/kakapo
           sops-nix.nixosModules.sops
           ledger.nixosModules.default
+          hasala.nixosModules.default
           {
             # Immich 3 with the module written for it. 26.05 ships Immich 2.7.5,
             # marked insecure (two CVEs, 2.x is unmaintained); Immich 3 lands in

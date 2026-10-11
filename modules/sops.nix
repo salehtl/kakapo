@@ -1,4 +1,15 @@
-_: {
+{ config, lib, ... }:
+let
+  hasala = config.services.hasala;
+  # secrets/hasala.yaml (modules/services/hasala.nix). Root-only (the
+  # sops-nix default); each reaches its unit only through LoadCredential=.
+  hasalaSecret = name: restartUnits: {
+    sopsFile = ../secrets/hasala.yaml;
+    key = "hasala/${name}";
+    inherit restartUnits;
+  };
+in
+{
   sops = {
     age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
 
@@ -50,5 +61,21 @@ _: {
       key = "unifi/api_key";
       owner = "saleh";
     };
+
+    # Hasala's QA backend. A secret is declared only while the feature that
+    # reads it is on (modules/services/hasala.nix), so restartUnits never
+    # names a unit that does not exist. In the file but not declared:
+    # mailbox_route_key (Gmail ingest, off), salt_key (no module option reads
+    # it yet) and asc_key_p8 (the operator console, a later PR).
+    secrets."hasala/auth_key" = hasalaSecret "auth_key" [ "hasalad.service" ];
+    secrets."hasala/email_api_token" = lib.mkIf (hasala.email.cloudflareAccountId != null) (
+      hasalaSecret "email_api_token" [ "hasalad.service" ]
+    );
+    secrets."hasala/tunnel_credentials" = lib.mkIf hasala.tunnel.enable (
+      hasalaSecret "tunnel_credentials" [ "cloudflared-hasala.service" ]
+    );
+    secrets."hasala/apns_key_p8" = lib.mkIf (hasala.apns.keyId != null) (
+      hasalaSecret "apns_key_p8" [ "hasalad.service" ]
+    );
   };
 }

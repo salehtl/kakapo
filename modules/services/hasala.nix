@@ -12,6 +12,9 @@
 #           ^/(api/v1/.*|hooks/gmail/pubsub)$ -> 127.0.0.1:8471, everything
 #           else 404. Rendered and asserted by the module, linted by hasala's
 #           CI. The API is never behind the LAN proxy (modules/services/lan-proxy.nix).
+#           The tunnel is LOCALLY managed (config_src = local): never migrate
+#           it to remote/dashboard management, which would replace this
+#           allowlist with whatever the dashboard says.
 # Database: its OWN PostgreSQL 17 (hasala-postgresql.service), unix socket only
 #           at /run/hasala-postgresql, data /var/lib/hasala-postgresql/17.
 #           NOT services.postgresql (that one is Immich's).
@@ -72,7 +75,7 @@ in
     };
     tunnel = lib.mkIf (cloudflareAccountId != null) {
       enable = true;
-      id = "d166d89d-c4e0-4c6a-9112-38e06c2d6d51"; # hasala-qa; not secret (it is in the public CNAME)
+      id = "d166d89d-c4e0-4c6a-9112-38e06c2d6d51"; # hasala-qa; not a secret (useless without tunnel_credentials)
       credentialsFile = secret "tunnel_credentials";
     };
 

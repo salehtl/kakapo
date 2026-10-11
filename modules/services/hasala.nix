@@ -7,9 +7,8 @@
 #           hasala-postgresql, hasala-db-setup, hasala-migrate (before every
 #           start), hasalad (`hasalad serve`), the backup and health timers.
 #           Kill switch: `sudo systemctl stop hasala.target`.
-# Ingress:  NONE until `cloudflareAccountId` below is set. Then PUBLIC through
-#           its OWN Cloudflare Tunnel (cloudflared-hasala.service, outbound
-#           only; no port opened): api.hasala.app +
+# Ingress:  PUBLIC through its OWN Cloudflare Tunnel (cloudflared-hasala.service,
+#           outbound only; no port opened; approved by Saleh 2026-10-11): api.hasala.app +
 #           ^/(api/v1/.*|hooks/gmail/pubsub)$ -> 127.0.0.1:8471, everything
 #           else 404. Rendered and asserted by the module, linted by hasala's
 #           CI. The API is never behind the LAN proxy (modules/services/lan-proxy.nix).
@@ -28,17 +27,18 @@ let
   cfg = config.services.hasala;
   secret = name: config.sops.secrets."hasala/${name}".path;
 
-  # Not secret, and not recorded yet. A feature whose value is null stays off;
-  # setting the value here is the whole change that turns it on (its secret in
-  # modules/sops.nix follows the same switch).
+  # Not secret. A feature whose value is null stays off; the value here is the
+  # whole switch (its secret in modules/sops.nix follows it). Set null to turn
+  # the feature off again.
   #
   # The Cloudflare account id (32 lowercase hex) that owns the hasala-qa
   # tunnel and sends Hasala's mail. The tunnel needs outbound mail (module
-  # assertion M11), so both wait for it; until then the API is reachable on
-  # loopback only.
-  cloudflareAccountId = null;
+  # assertion M11), so one value turns on both.
+  cloudflareAccountId = "19251a3240f684663f05ab537e14d57e";
   # The APNs auth key's 10-character key id (the .p8 is hasala/apns_key_p8).
-  apnsKeyId = null;
+  # The module's default environments (production and sandbox) stay: TestFlight
+  # builds use production, Xcode debug builds sandbox.
+  apnsKeyId = "77N67W8RZW";
 
   # Every TCP port already bound on this host, as of this file.
   taken = [
@@ -81,10 +81,15 @@ in
       keyId = apnsKeyId;
     };
 
-    # Gmail ingest stays off: the [gmail] group (google.iosClientId, gmail.*,
-    # mailboxRouteKeyFile) is all or nothing (M8), and the iOS OAuth client id
-    # and Pub/Sub names are not recorded here yet. hasala/mailbox_route_key
-    # waits in secrets/hasala.yaml for it.
+    # Gmail push stays off: the [gmail] group (google.iosClientId, gmail.*,
+    # mailboxRouteKeyFile) is all or nothing (M8), and its push subscription
+    # (projects/hasala-511307/subscriptions/<name>, endpoint and audience
+    # https://api.hasala.app/hooks/gmail/pubsub) and the service account it
+    # signs as do not exist yet. Known: client id
+    # 987620996339-4tbl1o14pf309u5h9bjatnaipvqg1ob9.apps.googleusercontent.com,
+    # topic projects/hasala-511307/topics/gmail-push. The phone still reads
+    # Gmail itself; push only adds wake-ups. hasala/mailbox_route_key waits in
+    # secrets/hasala.yaml for it.
 
     backup = {
       enable = true;

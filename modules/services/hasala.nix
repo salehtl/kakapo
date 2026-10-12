@@ -32,6 +32,26 @@
 #           [::1]:8472) that is not nginx's. Never public, never under
 #           hasala.app (module assertion M18), never on the hasala-qa tunnel
 #           (M16).
+#           Threat (security review, 2026-10-12): a tailnet login is a user,
+#           not a device. kakapo and homeassistant are untagged nodes logged
+#           in as salehtl@github, tailscaled's WhoIs answers for kakapo's own
+#           addresses too, and tailscale-nginx-auth refuses only tagged nodes.
+#           So any local process on kakapo could connect to nginx from
+#           kakapo's tailnet address (`curl --interface 100.98.60.126
+#           --resolve hasala.salehtl.com:443:10.0.0.215 ...`), be named
+#           salehtl@github, and mint, approve, revoke and resend; so could
+#           anything on homeassistant, over the tailnet. Two controls, both in
+#           modules/services/lan-proxy.nix (its header, "Identity"):
+#             1. `lan-proxy-out`: locally generated TCP to :443 on this host's
+#                own addresses from a tailnet address is reset, for every user.
+#                `lan-proxy-spoof-check` tests it every two minutes, as nobody
+#                from kakapo's tailnet address, and mails on failure.
+#             2. The console's vhost answers only `consoleDevices`, Saleh's own
+#                Mac and iPhone by tailnet address (`allow ...; deny all;`),
+#                never kakapo, homeassistant or any server.
+#           Defence in depth, out-of-band and Saleh's to do: tag kakapo and
+#           homeassistant (e.g. tag:server) in the Tailscale admin, so
+#           nginx-auth refuses them on every gated name (CLAUDE.md).
 # Secrets:  secrets/hasala.yaml (modules/sops.nix), all through LoadCredential=.
 # Ports:    127.0.0.1 only: API 8471, metrics 9471, cloudflared metrics 9472,
 #           console 8472, console healthz 9473.
@@ -119,15 +139,18 @@ in
     };
     # TestFlight is manual until the App Store Connect server key is in sops.
     # A follow-up PR adds hasala/asc_key_p8 to secrets/hasala.yaml and
-    # modules/sops.nix and switches it on:
+    # modules/sops.nix and switches it on, keeping refusedKeyIds below:
     #   asc = {
     #     enable = true;
     #     keyFile = secret "asc_key_p8";
     #     keyId = "<server App Manager key id>";
     #     keyKind = "team";
     #     issuerId = "<issuer UUID>";
-    #     refusedKeyIds = [ "<the Mac's upload key id>" ]; # never runs here (M20)
     #   };
+    # The Mac's App Store Connect upload key id (not secret). It must never
+    # run on this host (M20, PQ-16); set now, as HOST-PR.md asks, so the
+    # refusal is already in place when asc is switched on.
+    asc.refusedKeyIds = [ "275JBFHQ4L" ];
 
     # Gmail push stays off: the [gmail] group (google.iosClientId, gmail.*,
     # mailboxRouteKeyFile) is all or nothing (M8), and its push subscription
@@ -197,7 +220,9 @@ in
     {
       # The module's M19 checks that exactly one gated vhost proxies to the
       # console; this checks it is the one named console.host, since the
-      # console refuses every other Host header.
+      # console refuses every other Host header, and that the vhost carries
+      # the device allow-list (control 2 in the header; lan-proxy.nix
+      # asserts its contents).
       assertion =
         !cfg.console.enable
         || (
@@ -205,8 +230,11 @@ in
           &&
             (config.services.nginx.virtualHosts.${cfg.console.host}.locations."/".proxyPass or null)
             == "http://127.0.0.1:${toString cfg.console.port}"
+          && lib.hasSuffix "deny all;\n" (
+            config.services.nginx.virtualHosts.${cfg.console.host}.extraConfig or ""
+          )
         );
-      message = "hasala: console.host (${toString cfg.console.host}) is not the LAN proxy's tailnet-only vhost for the console port; add it to tailnetOnly in modules/services/lan-proxy.nix.";
+      message = "hasala: console.host (${toString cfg.console.host}) is not the LAN proxy's tailnet-only vhost for the console port with the device allow-list (`allow <Saleh's devices>; deny all;`); add it to tailnetOnly and consoleDevices in modules/services/lan-proxy.nix.";
     }
   ];
 }

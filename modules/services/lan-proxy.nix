@@ -39,6 +39,32 @@
 #          console (Machines -> kakapo -> Edit route settings), which is
 #          invisible from this flake. Linux clients also need
 #          `--accept-routes`. The tailnet policy is allow-all, so no ACL change.
+# Identity: the gated names (grafana and `tailnetOnly`) trust tailscale-nginx-
+#          auth, which asks tailscaled who owns the connecting address. A
+#          Tailscale identity is a USER, not a device: every untagged node
+#          logged in as salehtl@github is "salehtl@github", and nginx-auth
+#          refuses only tagged nodes. Two of those are servers: kakapo itself
+#          (tailscaled's WhoIs also answers for the machine's own addresses,
+#          and its ts-input chain accepts `-i lo -s <own tailnet address>`)
+#          and homeassistant (runs third-party add-ons). Until 2026-10-12 any
+#          local process on kakapo could therefore pose as Saleh with
+#            curl --interface <kakapo's 100.x> --resolve <name>:443:10.0.0.215
+#          and get Grafana admin, ledger, T3 Code or the Hasala console. Two
+#          controls, both in this file:
+#            1. `lan-proxy-out` (firewall below) resets every locally generated
+#               TCP connection to :443 on one of this host's own addresses
+#               whose source is a tailnet address (100.64.0.0/10,
+#               fd7a:115c:a1e0::/48), whoever owns it, root included. Tailnet
+#               peers arrive on tailscale0 through INPUT and never touch it.
+#               `lan-proxy-spoof-check` proves it every two minutes.
+#            2. The Hasala console's vhost answers only `consoleDevices`, the
+#               owner's Mac and iPhone by tailnet address, so homeassistant
+#               (or any other untagged node of his) cannot reach it either.
+#          The other gated names still admit every untagged salehtl@github
+#          node, homeassistant included. Tagging kakapo and homeassistant in
+#          the Tailscale admin (e.g. tag:server) closes that for all of them;
+#          it is out-of-band and Saleh's to do (see CLAUDE.md first: a tagged
+#          kakapo leaves autogroup:self, which Tailscale SSH rules may use).
 #
 # Adding a service: add `<name> = <port>;` to `proxied` below. It becomes
 # https://<name>.salehtl.com, proxied to 127.0.0.1:<port>, and its DNS record
@@ -54,6 +80,44 @@ let
   zone = "salehtl.com";
   lanAddress = "10.0.0.215";
   lanInterface = "enp4s0"; # same NIC as modules/services/adguard.nix
+  # Tailscale's address ranges (as in modules/services/zapret.nix).
+  tailnetV4 = "100.64.0.0/10";
+  tailnetV6 = "fd7a:115c:a1e0::/48";
+
+  # The only devices the Hasala console's vhost answers: Saleh's own Mac and
+  # iPhone, by their tailnet addresses (`tailscale status`; owner
+  # salehtl@github, OS macOS or iOS; read 2026-10-12). A tailnet login is a
+  # user, not a device, so this list is what keeps every other node logged in
+  # as salehtl@github out. NEVER add kakapo, homeassistant or any other server
+  # or linux node (see `servers`). A re-registered device gets a new address:
+  # it then sees 403 until its address is updated here. nginx listens on IPv4
+  # only, so the IPv6 entries matter only if it ever gains an IPv6 listener.
+  # salehs-old-phone (iOS, offline) is left out on purpose until Saleh says it
+  # is still his.
+  consoleDevices = {
+    rabbit = [
+      "100.97.47.88"
+      "fd7a:115c:a1e0::e3a:2f59"
+    ];
+    salehs-phone = [
+      "100.96.130.97"
+      "fd7a:115c:a1e0::f83a:8263"
+    ];
+  };
+  # Untagged nodes logged in as salehtl@github that run other people's code or
+  # services. tailscale-nginx-auth vouches for them as Saleh, so they must never
+  # be in consoleDevices (an assertion below checks).
+  servers = {
+    kakapo = [
+      "100.98.60.126"
+      "fd7a:115c:a1e0::1a3a:3c7e"
+    ];
+    homeassistant = [
+      "100.65.241.104"
+      "fd7a:115c:a1e0::9c01:f168"
+    ];
+  };
+  consoleAllow = lib.concatLists (lib.attrValues consoleDevices);
 
   # name -> 127.0.0.1 port, with no authentication added. Never Grafana (it
   # has its own vhost below) or ledger; see the assertions.
@@ -93,10 +157,12 @@ let
     # Hasala's operator console (waitlist approval, invites, mail log;
     # modules/services/hasala.nix). It has no login of its own: it trusts
     # X-Webauth-User and X-Webauth-Tailnet, which tailscale-nginx-auth sets on
-    # this vhost, and admits only services.hasala.console.logins. The hasala
-    # module's kernel rule lets only nginx's UID connect to its port. The
-    # Hasala API (8471) is public through its own tunnel and must never be
-    # listed here, and the console never goes on that tunnel.
+    # this vhost, and admits only services.hasala.console.logins. A login is
+    # a user, not a device, so the vhost also answers only consoleDevices
+    # (serverExtra.hasala). The hasala module's kernel rule lets only nginx's
+    # UID connect to its port. The Hasala API (8471) is public through its
+    # own tunnel and must never be listed here, and the console never goes on
+    # that tunnel.
     hasala = config.services.hasala.console.port;
   };
   tailnetOnlyNames = map (name: "${name}.${zone}") (lib.attrNames tailnetOnly);
@@ -143,6 +209,11 @@ let
       proxy_read_timeout 1h;
       proxy_send_timeout 1h;
     '';
+    # The console answers Saleh's own devices only (consoleDevices), on top of
+    # tailscale-nginx-auth and the console's login list. Server-level, so it
+    # covers `/` without adding a location (see the gated-vhost assertion);
+    # everyone else gets 403 from nginx.
+    hasala = lib.concatMapStrings (ip: "allow ${ip};\n") consoleAllow + "deny all;\n";
     # Phone backups upload whole videos in one request; stream them straight
     # through instead of buffering to disk, and allow slow links.
     photos = ''
@@ -233,6 +304,86 @@ let
     ];
     text = builtins.readFile ./lan-proxy-dns.sh;
   };
+
+  # Locally generated TCP to :443 on one of this host's own addresses: the
+  # packets lan-proxy-out sees. addrtype LOCAL rather than `-o lo`, because a
+  # socket bound to tailscale0 routes 10.0.0.215 out of that interface
+  # instead of lo. Forwarded traffic (exit-node clients) never passes OUTPUT,
+  # and zapret's own packets go to remote addresses, so neither is touched.
+  outMatch = "-p tcp --dport 443 -m addrtype --dst-type LOCAL";
+  tsInterface = config.services.tailscale.interfaceName;
+
+  # Control 1 in the header, tested the way it would be attacked: as a local
+  # user that is neither root nor nginx, from kakapo's own tailnet address.
+  spoofCheck = pkgs.writeShellApplication {
+    name = "lan-proxy-spoof-check";
+    runtimeInputs = [
+      pkgs.curl
+      pkgs.iproute2
+      pkgs.util-linux
+      pkgs.gawk
+      pkgs.coreutils
+      config.networking.firewall.package
+    ];
+    text = ''
+      fail=0
+      note() { echo "lan-proxy-spoof-check: $*" >&2; fail=1; }
+      # curl as nobody: not root, and not nginx (the one user hasala-console-out
+      # lets reach the console's port). -q: never read a .curlrc.
+      as_nobody() { setpriv --reuid=nobody --regid=nogroup --clear-groups --inh-caps=-all curl -q "$@"; }
+
+      # 1. The rules are loaded. nginx has no IPv6 listener, so the IPv6 twin
+      #    can only be checked this way.
+      iptables -w -C OUTPUT ${outMatch} -j lan-proxy-out 2>/dev/null \
+        || note "iptables OUTPUT has no jump to lan-proxy-out"
+      iptables -w -C lan-proxy-out -s ${tailnetV4} -j REJECT --reject-with tcp-reset 2>/dev/null \
+        || note "lan-proxy-out does not reset ${tailnetV4}"
+      ip6tables -w -C OUTPUT ${outMatch} -j lan-proxy-out 2>/dev/null \
+        || note "ip6tables OUTPUT has no jump to lan-proxy-out"
+      ip6tables -w -C lan-proxy-out -s ${tailnetV6} -j REJECT --reject-with tcp-reset 2>/dev/null \
+        || note "ip6tables lan-proxy-out does not reset ${tailnetV6}"
+
+      # 2. Control: nginx answers nobody on ${lanAddress}:443 from the LAN
+      #    address, so a refusal in 3 is the rule and not a stopped nginx.
+      body=$(as_nobody -sk --max-time 10 --resolve "kakapo.${zone}:443:${lanAddress}" "https://kakapo.${zone}/" || true)
+      [ "$body" = kakapo ] || note "nginx did not answer https://kakapo.${zone}/ on ${lanAddress}:443, so check 3 proved nothing"
+
+      # 3. The impersonation itself: nobody, from kakapo's tailnet address, to
+      #    every gated name. Each connection must be reset (curl exit 7). Any
+      #    other result means it reached nginx, where tailscale-nginx-auth
+      #    would have answered "salehtl@github".
+      v4=$(ip -4 -o addr show dev ${tsInterface} 2>/dev/null | awk '{ split($4, a, "/"); print a[1]; exit }' || true)
+      if [ -z "$v4" ]; then
+        echo "lan-proxy-spoof-check: no IPv4 address on ${tsInterface} (tailscaled down?), so no tailnet identity to pose as"
+      else
+        for name in ${lib.escapeShellArgs gatedNames}; do
+          rc=0
+          code=$(as_nobody -sk -o /dev/null -w '%{http_code}' --max-time 10 --interface "$v4" \
+            --resolve "$name:443:${lanAddress}" "https://$name/") || rc=$?
+          [ "$rc" = 7 ] || note "nobody reached $name from $v4 (curl exit $rc, HTTP ''${code:-none}; want exit 7): a local process can pose as kakapo's tailnet identity"
+        done
+      fi
+
+      # Alert (onFailure: mail and push) on the second failing run in a row
+      # only, so a firewall reload or nginx restart during one run stays quiet
+      # and a lasting failure alerts once; a push on recovery.
+      f="$STATE_DIRECTORY/failures"
+      n=$(cat "$f" 2>/dev/null || echo 0)
+      if [ "$fail" = 0 ]; then
+        if [ "$n" -ge 2 ]; then
+          curl -q -s --max-time 10 -o /dev/null -H "Title: [${config.networking.hostName}] lan-proxy-spoof-check recovered" \
+            -d "Nothing on kakapo reaches the LAN proxy from a tailnet address again." http://127.0.0.1:2586/kakapo || true
+        fi
+        echo 0 >"$f"
+        echo "lan-proxy-spoof-check: ok (from ''${v4:-no tailnet address}: every gated name refused)"
+        exit 0
+      fi
+      n=$((n + 1))
+      echo "$n" >"$f"
+      [ "$n" -eq 2 ] && exit 1
+      exit 0
+    '';
+  };
 in
 {
   # The LAN gets these names from /etc/hosts through AdGuard (hostsfile_enabled),
@@ -297,6 +448,61 @@ in
   networking.firewall.interfaces = {
     ${lanInterface}.allowedTCPPorts = [ 443 ];
     tailscale0.allowedTCPPorts = [ 443 ];
+  };
+
+  # Control 1 (header, "Identity"): nothing on kakapo may connect to the proxy
+  # from a tailnet address, or tailscale-nginx-auth vouches for it as Saleh.
+  # Every user, root included; there is no legitimate caller (the host's own
+  # requests to *.salehtl.com leave from 10.0.0.215, and every health probe and
+  # Prometheus target uses 127.0.0.1). Tailnet peers arrive on tailscale0
+  # through INPUT and never pass here. A chain we flush and refill, like
+  # hasala-console-out, so a reload never stacks rules.
+  networking.firewall.extraCommands = ''
+    iptables -w -N lan-proxy-out 2>/dev/null || true
+    iptables -w -F lan-proxy-out
+    iptables -w -A lan-proxy-out -s ${tailnetV4} -j REJECT --reject-with tcp-reset
+    iptables -w -C OUTPUT ${outMatch} -j lan-proxy-out 2>/dev/null \
+      || iptables -w -I OUTPUT ${outMatch} -j lan-proxy-out
+    ip6tables -w -N lan-proxy-out 2>/dev/null || true
+    ip6tables -w -F lan-proxy-out
+    ip6tables -w -A lan-proxy-out -s ${tailnetV6} -j REJECT --reject-with tcp-reset
+    ip6tables -w -C OUTPUT ${outMatch} -j lan-proxy-out 2>/dev/null \
+      || ip6tables -w -I OUTPUT ${outMatch} -j lan-proxy-out
+  '';
+  networking.firewall.extraStopCommands = ''
+    iptables -w -D OUTPUT ${outMatch} -j lan-proxy-out 2>/dev/null || true
+    iptables -w -F lan-proxy-out 2>/dev/null || true
+    iptables -w -X lan-proxy-out 2>/dev/null || true
+    ip6tables -w -D OUTPUT ${outMatch} -j lan-proxy-out 2>/dev/null || true
+    ip6tables -w -F lan-proxy-out 2>/dev/null || true
+    ip6tables -w -X lan-proxy-out 2>/dev/null || true
+  '';
+
+  # Proves control 1 every two minutes (it runs as root to read the firewall;
+  # its probes run as nobody). Mails and pushes through notify-failure on the
+  # second failing run in a row.
+  systemd.services.lan-proxy-spoof-check = {
+    description = "Check that nothing on kakapo reaches the LAN proxy from a tailnet address";
+    after = [
+      "firewall.service"
+      "nginx.service"
+      "tailscaled.service"
+    ];
+    onFailure = [ "notify-failure@%n.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = lib.getExe spoofCheck;
+      StateDirectory = "lan-proxy-spoof-check";
+      PrivateTmp = true;
+      ProtectHome = true;
+    };
+  };
+  systemd.timers.lan-proxy-spoof-check = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "5min";
+      OnUnitActiveSec = "2min";
+    };
   };
 
   # Appended to base.nix's [ "--ssh" ]; tailscaled-set applies the list with
@@ -420,6 +626,34 @@ in
       message = "An ungated nginx vhost proxies to a gated app's port (${
         lib.concatMapStringsSep ", " toString gatedPorts
       }). That route skips tailscale-nginx-auth and exposes it to the plain LAN; gated apps belong in `tailnetOnly` (or grafanaVhost) only.";
+    }
+    {
+      # Control 2 (header, "Identity"). Each entry is one tailnet address,
+      # never a range or `all`, never a server's; and the console's vhost has
+      # exactly those allows then `deny all;` at server level, and no
+      # `satisfy any` that would let tailscale-nginx-auth alone admit a caller.
+      assertion =
+        let
+          v = config.services.nginx.virtualHosts."hasala.${zone}";
+          isTailnetAddress =
+            ip:
+            builtins.match "100\\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\\.[0-9]{1,3}\\.[0-9]{1,3}" ip != null
+            || builtins.match "fd7a:115c:a1e0:[0-9a-f:]+" ip != null;
+          serverAddresses = lib.concatLists (lib.attrValues servers);
+          vhostText = lib.concatStringsSep "\n" (
+            [ v.extraConfig ] ++ map (l: l.extraConfig) (lib.attrValues v.locations)
+          );
+        in
+        !(tailnetOnly ? hasala)
+        || (
+          consoleAllow != [ ]
+          && lib.all isTailnetAddress consoleAllow
+          && !(lib.any (ip: lib.elem ip serverAddresses) consoleAllow)
+          && v.extraConfig == serverExtra.hasala
+          && lib.hasSuffix "deny all;\n" v.extraConfig
+          && !(lib.hasInfix "satisfy" vhostText)
+        );
+      message = "hasala.${zone} must answer only consoleDevices (modules/services/lan-proxy.nix): each entry a single tailnet address of Saleh's own Mac, iPhone or iPad, never a range, `all`, or a server node (${lib.concatStringsSep ", " (lib.attrNames servers)}), with the vhost's server config exactly those `allow`s then `deny all;` and no `satisfy`. tailscale-nginx-auth vouches for every untagged node logged in as salehtl@github, servers included.";
     }
     {
       assertion = !(lib.elem ledgerPort (lib.attrValues proxied));

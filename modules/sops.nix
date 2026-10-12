@@ -65,8 +65,7 @@ in
     # Hasala's QA backend. A secret is declared only while the feature that
     # reads it is on (modules/services/hasala.nix), so restartUnits never
     # names a unit that does not exist. In the file but not declared:
-    # mailbox_route_key (Gmail ingest, off) and asc_key_p8 (the operator
-    # console, a later PR).
+    # asc_key_p8 (the operator console's TestFlight, a later PR).
     secrets."hasala/auth_key" = hasalaSecret "auth_key" [ "hasalad.service" ];
     secrets."hasala/salt_key" = hasalaSecret "salt_key" [ "hasalad.service" ];
     secrets."hasala/email_api_token" = lib.mkIf (hasala.email.cloudflareAccountId != null) (
@@ -74,6 +73,9 @@ in
     );
     secrets."hasala/tunnel_credentials" = lib.mkIf hasala.tunnel.enable (
       hasalaSecret "tunnel_credentials" [ "cloudflared-hasala.service" ]
+    );
+    secrets."hasala/mailbox_route_key" = lib.mkIf (hasala.google.iosClientId != null) (
+      hasalaSecret "mailbox_route_key" [ "hasalad.service" ]
     );
     secrets."hasala/apns_key_p8" = lib.mkIf (hasala.apns.keyId != null) (
       hasalaSecret "apns_key_p8" [ "hasalad.service" ]

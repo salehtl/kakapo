@@ -90,6 +90,14 @@ let
     # ntfy is open to whoever reaches it; this gate is its access control
     # (modules/services/ntfy.nix).
     ntfy = 2586;
+    # Hasala's operator console (waitlist approval, invites, mail log;
+    # modules/services/hasala.nix). It has no login of its own: it trusts
+    # X-Webauth-User and X-Webauth-Tailnet, which tailscale-nginx-auth sets on
+    # this vhost, and admits only services.hasala.console.logins. The hasala
+    # module's kernel rule lets only nginx's UID connect to its port. The
+    # Hasala API (8471) is public through its own tunnel and must never be
+    # listed here, and the console never goes on that tunnel.
+    hasala = config.services.hasala.console.port;
   };
   tailnetOnlyNames = map (name: "${name}.${zone}") (lib.attrNames tailnetOnly);
 
@@ -385,7 +393,7 @@ in
           && lib.hasInfix ''Expected-Tailnet "${tailnetName}"'' v.locations."/auth".extraConfig
           && !(lib.hasInfix "location" v.extraConfig)
         ) gatedNames;
-      message = "A gated name (${lib.concatStringsSep ", " gatedNames}) is not fully behind tailscale-nginx-auth: it is missing from tailscaleAuth.virtualHosts, lacks the Expected-Tailnet check on /auth, or has a location outside the gated `/` (tailscaleAuth guards only `/`). Grafana hands out admin from a header, ledger has no login, and T3 Code runs agents as saleh, who has passwordless sudo.";
+      message = "A gated name (${lib.concatStringsSep ", " gatedNames}) is not fully behind tailscale-nginx-auth: it is missing from tailscaleAuth.virtualHosts, lacks the Expected-Tailnet check on /auth, or has a location outside the gated `/` (tailscaleAuth guards only `/`). Grafana hands out admin from a header, ledger has no login, T3 Code runs agents as saleh, who has passwordless sudo, and Hasala's console takes its operator's identity from the X-Webauth-User header.";
     }
     {
       # No other vhost may reach a gated app's port: not through `proxied`, a

@@ -23,8 +23,18 @@
 #           (29 days; RequiresMountsFor, so never onto / behind an unmounted
 #           media disk). No decryption key is on this host. No off-site copy yet.
 # Admin:    `sudo hasala-admin <mode>` over SSH.
+# Console:  the operator console (`hasalad console`, hasala-console.service, its
+#           own OS user) at https://hasala.salehtl.com, TAILNET ONLY: the LAN
+#           proxy's tailnetOnly list (modules/services/lan-proxy.nix) puts it
+#           behind tailscale-nginx-auth, and the console admits only `logins`
+#           below by the X-Webauth-User header nginx sets. The module's kernel
+#           rule resets every local TCP connection to 127.0.0.1:8472 (and
+#           [::1]:8472) that is not nginx's. Never public, never under
+#           hasala.app (module assertion M18), never on the hasala-qa tunnel
+#           (M16).
 # Secrets:  secrets/hasala.yaml (modules/sops.nix), all through LoadCredential=.
-# Ports:    127.0.0.1 only: API 8471, metrics 9471, cloudflared metrics 9472.
+# Ports:    127.0.0.1 only: API 8471, metrics 9471, cloudflared metrics 9472,
+#           console 8472, console healthz 9473.
 { config, lib, ... }:
 let
   cfg = config.services.hasala;
@@ -88,6 +98,37 @@ in
       keyId = apnsKeyId;
     };
 
+    # The operator console (spec 07; HOST-PR.md "PR C"). Its port and
+    # metricsPort are the module's defaults, 8472 and 9473.
+    console = {
+      enable = true;
+      # A LAN-proxy name (its tailnetOnly list), never a name under hasala.app
+      # (M18). The console refuses any other Host header.
+      host = "hasala.salehtl.com";
+      # Full tailnet logins as tailscale-nginx-auth reports them in
+      # X-Webauth-User (`tailscale status` shows them shortened to `salehtl@`).
+      # The tailnet has other members, so this list is the console's access
+      # control: never widen it to "anyone on the tailnet".
+      logins = [ "salehtl@github" ];
+      # The tailnet X-Webauth-Tailnet must name (lan-proxy.nix's tailnetName;
+      # the console ignores the trailing dot nginx-auth sends).
+      tailnet = "marmoset-paradise.ts.net";
+      # The only user the kernel rule lets connect to the console port: the
+      # LAN proxy's nginx (the module's default, spelled out).
+      restrictToUser = config.services.nginx.user;
+    };
+    # TestFlight is manual until the App Store Connect server key is in sops.
+    # A follow-up PR adds hasala/asc_key_p8 to secrets/hasala.yaml and
+    # modules/sops.nix and switches it on:
+    #   asc = {
+    #     enable = true;
+    #     keyFile = secret "asc_key_p8";
+    #     keyId = "<server App Manager key id>";
+    #     keyKind = "team";
+    #     issuerId = "<issuer UUID>";
+    #     refusedKeyIds = [ "<the Mac's upload key id>" ]; # never runs here (M20)
+    #   };
+
     # Gmail push stays off: the [gmail] group (google.iosClientId, gmail.*,
     # mailboxRouteKeyFile) is all or nothing (M8), and its push subscription
     # (projects/hasala-511307/subscriptions/<name>, endpoint and audience
@@ -148,8 +189,24 @@ in
         cfg.listen.port
         cfg.metrics.port
         cfg.tunnel.metricsPort
+        cfg.console.port
+        cfg.console.metricsPort
       ];
       message = "hasala: a port collides with one this host already uses (modules/services/hasala.nix).";
+    }
+    {
+      # The module's M19 checks that exactly one gated vhost proxies to the
+      # console; this checks it is the one named console.host, since the
+      # console refuses every other Host header.
+      assertion =
+        !cfg.console.enable
+        || (
+          lib.elem cfg.console.host config.services.nginx.tailscaleAuth.virtualHosts
+          &&
+            (config.services.nginx.virtualHosts.${cfg.console.host}.locations."/".proxyPass or null)
+            == "http://127.0.0.1:${toString cfg.console.port}"
+        );
+      message = "hasala: console.host (${toString cfg.console.host}) is not the LAN proxy's tailnet-only vhost for the console port; add it to tailnetOnly in modules/services/lan-proxy.nix.";
     }
   ];
 }

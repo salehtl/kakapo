@@ -49,9 +49,10 @@
 #             2. The console's vhost answers only `consoleDevices`, Saleh's own
 #                Mac and iPhone by tailnet address (`allow ...; deny all;`),
 #                never kakapo, homeassistant or any server.
-#           Defence in depth, out-of-band and Saleh's to do: tag kakapo and
-#           homeassistant (e.g. tag:server) in the Tailscale admin, so
-#           nginx-auth refuses them on every gated name (CLAUDE.md).
+#           lan-proxy.nix also denies kakapo's and homeassistant's tailnet
+#           addresses on every gated vhost (`untaggedDeny`), a stopgap until
+#           Saleh tags both (tag:server) in the Tailscale admin, out-of-band:
+#           nginx-auth then refuses them on every gated name (CLAUDE.md).
 # Secrets:  secrets/hasala.yaml (modules/sops.nix), all through LoadCredential=.
 # Ports:    127.0.0.1 only: API 8471, metrics 9471, cloudflared metrics 9472,
 #           console 8472, console healthz 9473.

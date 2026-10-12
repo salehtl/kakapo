@@ -153,15 +153,19 @@ in
     # refusal is already in place when asc is switched on.
     asc.refusedKeyIds = [ "275JBFHQ4L" ];
 
-    # Gmail push stays off: the [gmail] group (google.iosClientId, gmail.*,
-    # mailboxRouteKeyFile) is all or nothing (M8), and its push subscription
-    # (projects/hasala-511307/subscriptions/<name>, endpoint and audience
-    # https://api.hasala.app/hooks/gmail/pubsub) and the service account it
-    # signs as do not exist yet. Known: client id
-    # 987620996339-4tbl1o14pf309u5h9bjatnaipvqg1ob9.apps.googleusercontent.com,
-    # topic projects/hasala-511307/topics/gmail-push. The phone still reads
-    # Gmail itself; push only adds wake-ups. hasala/mailbox_route_key waits in
-    # secrets/hasala.yaml for it.
+    # Gmail's mailbox link (M8a): the iOS client id (not secret; it ships in
+    # the app, ios/Config/Shared.xcconfig) and the route key, both or neither.
+    # It mounts the app's Connect Gmail routes; without gmail.* below the app
+    # fetches mail when opened or refreshed in the background, with no wakes.
+    google.iosClientId = "987620996339-4tbl1o14pf309u5h9bjatnaipvqg1ob9.apps.googleusercontent.com";
+    mailboxRouteKeyFile = secret "mailbox_route_key";
+    # Gmail's Pub/Sub push (M8b) stays off: all four or none, only with the
+    # link, and its push subscription (projects/hasala-511307/subscriptions/
+    # <name>, endpoint and audience https://api.hasala.app/hooks/gmail/pubsub)
+    # and the service account it signs as do not exist yet. Known: topic
+    # projects/hasala-511307/topics/gmail-push. Order: topic and service
+    # account, then the host PR setting gmail.*, then the subscription
+    # (hasala's infra/qa/HOST-PR.md, "Gmail: the link now, the push later").
 
     backup = {
       enable = true;

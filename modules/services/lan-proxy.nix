@@ -71,12 +71,14 @@
 #          KNOWN RESIDUAL RISK: these controls close the PROXY to local
 #          processes, not the apps behind it. Only the console's own port is
 #          closed to them, by the hasala module's `hasala-console-out` (only
-#          nginx may connect to 127.0.0.1:8472). The others listen on loopback
-#          as before 2026-10-12, and any local user or service on kakapo can
-#          still reach them there directly, without nginx: Grafana on
-#          127.0.0.1:3000 trusts a Tailscale-User-Login header from loopback
-#          (admin for salehtl@github), ledger on 127.0.0.1:8090 has no login,
-#          and ntfy on 127.0.0.1:2586 is open.
+#          nginx may connect to 127.0.0.1:8472). The other gated apps still
+#          listen on loopback, open to every local user, as before 2026-10-12,
+#          so any local user or service on kakapo can reach them there
+#          directly, without nginx: Grafana on 127.0.0.1:3000 trusts a
+#          Tailscale-User-Login header from loopback (admin for
+#          salehtl@github), ledger on 127.0.0.1:8090 has no login, and ntfy on
+#          127.0.0.1:2586 is open. (T3 Code on 127.0.0.1:3773 has only its own
+#          device pairing there.)
 #
 # Adding a service: add `<name> = <port>;` to `proxied` below. It becomes
 # https://<name>.salehtl.com, proxied to 127.0.0.1:<port>, and its DNS record

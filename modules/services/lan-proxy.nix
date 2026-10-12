@@ -47,10 +47,10 @@
 #          (tailscaled's WhoIs also answers for the machine's own addresses,
 #          and its ts-input chain accepts `-i lo -s <own tailnet address>`)
 #          and homeassistant (runs third-party add-ons). Until 2026-10-12 any
-#          local process on kakapo could therefore pose as Saleh with
+#          local process on kakapo could therefore pose as Saleh to nginx with
 #            curl --interface <kakapo's 100.x> --resolve <name>:443:10.0.0.215
-#          and get Grafana admin, ledger, T3 Code or the Hasala console. Two
-#          controls, both in this file:
+#          and anything on homeassistant could over the tailnet. Three
+#          controls, all in this file:
 #            1. `lan-proxy-out` (firewall below) resets every locally generated
 #               TCP connection to :443 on one of this host's own addresses
 #               whose source is a tailnet address (100.64.0.0/10,
@@ -58,13 +58,27 @@
 #               peers arrive on tailscale0 through INPUT and never touch it.
 #               `lan-proxy-spoof-check` proves it every two minutes.
 #            2. The Hasala console's vhost answers only `consoleDevices`, the
-#               owner's Mac and iPhone by tailnet address, so homeassistant
-#               (or any other untagged node of his) cannot reach it either.
-#          The other gated names still admit every untagged salehtl@github
-#          node, homeassistant included. Tagging kakapo and homeassistant in
-#          the Tailscale admin (e.g. tag:server) closes that for all of them;
-#          it is out-of-band and Saleh's to do (see CLAUDE.md first: a tagged
-#          kakapo leaves autogroup:self, which Tailscale SSH rules may use).
+#               owner's Mac and iPhone by tailnet address, so no other
+#               untagged node of his can reach it.
+#            3. STOPGAP: every gated vhost denies the tailnet addresses of
+#               `servers` (kakapo, homeassistant) at server level, ahead of any
+#               allow (`untaggedDeny`).
+#          Recommended, out-of-band and Saleh's to do: tag kakapo and
+#          homeassistant in the Tailscale admin (tag:server). nginx-auth then
+#          refuses them on every gated name, and control 3 is removed. See
+#          CLAUDE.md first: a tagged kakapo leaves autogroup:self, which
+#          Tailscale SSH rules may use.
+#          KNOWN RESIDUAL RISK: these controls close the PROXY to local
+#          processes, not the apps behind it. Only the console's own port is
+#          closed to them, by the hasala module's `hasala-console-out` (only
+#          nginx may connect to 127.0.0.1:8472). The other gated apps still
+#          listen on loopback, open to every local user, as before 2026-10-12,
+#          so any local user or service on kakapo can reach them there
+#          directly, without nginx: Grafana on 127.0.0.1:3000 trusts a
+#          Tailscale-User-Login header from loopback (admin for
+#          salehtl@github), ledger on 127.0.0.1:8090 has no login, and ntfy on
+#          127.0.0.1:2586 is open. (T3 Code on 127.0.0.1:3773 has only its own
+#          device pairing there.)
 #
 # Adding a service: add `<name> = <port>;` to `proxied` below. It becomes
 # https://<name>.salehtl.com, proxied to 127.0.0.1:<port>, and its DNS record
@@ -105,8 +119,10 @@ let
     ];
   };
   # Untagged nodes logged in as salehtl@github that run other people's code or
-  # services. tailscale-nginx-auth vouches for them as Saleh, so they must never
-  # be in consoleDevices (an assertion below checks).
+  # services, by their tailnet addresses (`tailscale status --json`, read
+  # 2026-10-12). tailscale-nginx-auth vouches for them as Saleh, so they must
+  # never be in consoleDevices (an assertion below checks), and until they are
+  # tagged every gated vhost denies them (untaggedDeny).
   servers = {
     kakapo = [
       "100.98.60.126"
@@ -117,7 +133,36 @@ let
       "fd7a:115c:a1e0::9c01:f168"
     ];
   };
+  serverAddresses = lib.concatLists (lib.attrValues servers);
   consoleAllow = lib.concatLists (lib.attrValues consoleDevices);
+
+  # STOPGAP (control 3 in the header): remove this list, and its uses in
+  # serverConfig and the gated-vhost assertion, once kakapo and homeassistant
+  # are tagged (tag:server) in the Tailscale admin. nginx-auth refuses tagged
+  # nodes on every gated name by itself, which makes it unnecessary. Until
+  # then, the first lines of every gated vhost's server config, so they come
+  # before any allow (consoleDevices). Server level, so they cover `/`
+  # without adding a location; a location with its own allow or deny would
+  # replace them, which the gated-vhost assertion refuses. kakapo's own
+  # addresses are reset by lan-proxy-out before they reach nginx; denying them
+  # here as well costs nothing. nginx listens on IPv4 only, so the IPv6 lines
+  # matter only if it ever gains an IPv6 listener.
+  untaggedDeny = lib.concatMapStrings (ip: "deny ${ip};\n") serverAddresses;
+
+  # For the access-rule assertions. The words of an nginx config snippet,
+  # split on whitespace, quotes, `;`, `{` and `}`: `allow all;` has the word
+  # "allow", a header such as Access-Control-Allow-Origin does not.
+  hasDirective =
+    names: text:
+    lib.any (w: lib.elem w names) (lib.filter lib.isString (builtins.split "[[:space:];{}\"']+" text));
+  # The http block, which every vhost inherits from. A `satisfy any` there
+  # would let tailscale-nginx-auth alone admit a caller that consoleDevices or
+  # untaggedDeny refuses.
+  httpLevelConfig = lib.concatStringsSep "\n" [
+    config.services.nginx.commonHttpConfig
+    config.services.nginx.httpConfig
+    config.services.nginx.appendHttpConfig
+  ];
 
   # name -> 127.0.0.1 port, with no authentication added. Never Grafana (it
   # has its own vhost below) or ledger; see the assertions.
@@ -212,7 +257,8 @@ let
     # The console answers Saleh's own devices only (consoleDevices), on top of
     # tailscale-nginx-auth and the console's login list. Server-level, so it
     # covers `/` without adding a location (see the gated-vhost assertion);
-    # everyone else gets 403 from nginx.
+    # everyone else gets 403 from nginx. serverConfig puts untaggedDeny ahead
+    # of these allows.
     hasala = lib.concatMapStrings (ip: "allow ${ip};\n") consoleAllow + "deny all;\n";
     # Phone backups upload whole videos in one request; stream them straight
     # through instead of buffering to disk, and allow slow links.
@@ -224,6 +270,13 @@ let
       send_timeout 600s;
     '';
   };
+
+  # A vhost's server-level config: on a gated name, untaggedDeny first (ahead
+  # of any allow), then its serverExtra.
+  serverConfig =
+    name:
+    lib.optionalString (lib.elem "${name}.${zone}" gatedNames) untaggedDeny
+    + (serverExtra.${name} or "");
 
   grafanaPort = config.services.grafana.settings.server.http_port;
   ledgerPort = lib.toInt (
@@ -260,6 +313,7 @@ let
   # the subnet route with their tailnet address and are identified; anything
   # else fails whois and gets 401. Never put Grafana in `proxied`.
   grafanaVhost = vhost {
+    extraConfig = serverConfig "grafana";
     locations."/" = {
       proxyPass = "http://127.0.0.1:${toString grafanaPort}";
       proxyWebsockets = true;
@@ -286,12 +340,12 @@ let
   // lib.mapAttrs' (
     name: port:
     lib.nameValuePair "${name}.${zone}" (
-      proxyVhost "http://127.0.0.1:${toString port}" // { extraConfig = serverExtra.${name} or ""; }
+      proxyVhost "http://127.0.0.1:${toString port}" // { extraConfig = serverConfig name; }
     )
   ) (proxied // tailnetOnly)
   // lib.mapAttrs' (
     name: url:
-    lib.nameValuePair "${name}.${zone}" (proxyVhost url // { extraConfig = serverExtra.${name} or ""; })
+    lib.nameValuePair "${name}.${zone}" (proxyVhost url // { extraConfig = serverConfig name; })
   ) lanUpstreams;
 
   names = lib.attrNames vhosts;
@@ -358,7 +412,8 @@ let
       # 3. The impersonation itself: nobody, from kakapo's tailnet address, to
       #    every gated name. Each connection must be reset (curl exit 7). Any
       #    other result means it reached nginx, where tailscale-nginx-auth
-      #    would have answered "salehtl@github".
+      #    would have answered "salehtl@github" (an HTTP 403 is untaggedDeny,
+      #    the stopgap, catching what lan-proxy-out should have).
       v4=$(ip -4 -o addr show dev ${tsInterface} 2>/dev/null | awk '{ split($4, a, "/"); print a[1]; exit }' || true)
       if [ -z "$v4" ]; then
         echo "lan-proxy-spoof-check: no IPv4 address on ${tsInterface} (tailscaled down?), so no tailnet identity to pose as"
@@ -588,9 +643,13 @@ in
     {
       # tailscaleAuth guards only `location /`, so a gated vhost may have
       # nothing else: no extra location, no server-level `location`, and the
-      # tailnet check on /auth.
+      # tailnet check on /auth. Its server config starts with untaggedDeny
+      # (control 3), and nothing may undo that: no allow or deny in a location
+      # (nginx then uses the location's rules and drops the server's), and no
+      # `satisfy` in the vhost or the http block.
       assertion =
         config.services.nginx.tailscaleAuth.enable
+        && !(hasDirective [ "satisfy" ] httpLevelConfig)
         && lib.all (
           name:
           let
@@ -605,8 +664,18 @@ in
           && lib.hasInfix "auth_request /auth;" v.locations."/".extraConfig
           && lib.hasInfix ''Expected-Tailnet "${tailnetName}"'' v.locations."/auth".extraConfig
           && !(lib.hasInfix "location" v.extraConfig)
+          && lib.hasPrefix untaggedDeny v.extraConfig
+          && !(hasDirective [ "satisfy" ] v.extraConfig)
+          && !(lib.any (
+            l:
+            hasDirective [
+              "allow"
+              "deny"
+              "satisfy"
+            ] l.extraConfig
+          ) (lib.attrValues v.locations))
         ) gatedNames;
-      message = "A gated name (${lib.concatStringsSep ", " gatedNames}) is not fully behind tailscale-nginx-auth: it is missing from tailscaleAuth.virtualHosts, lacks the Expected-Tailnet check on /auth, or has a location outside the gated `/` (tailscaleAuth guards only `/`). Grafana hands out admin from a header, ledger has no login, T3 Code runs agents as saleh, who has passwordless sudo, and Hasala's console takes its operator's identity from the X-Webauth-User header.";
+      message = "A gated name (${lib.concatStringsSep ", " gatedNames}) is not fully behind tailscale-nginx-auth: it is missing from tailscaleAuth.virtualHosts, lacks the Expected-Tailnet check on /auth, has a location outside the gated `/` (tailscaleAuth guards only `/`), does not start its server config with the stopgap deny of kakapo and homeassistant (untaggedDeny), or has `allow`/`deny` in a location (which replaces the server's rules) or `satisfy` in the vhost or the http block (commonHttpConfig, httpConfig, appendHttpConfig). Grafana hands out admin from a header, ledger has no login, T3 Code runs agents as saleh, who has passwordless sudo, and Hasala's console takes its operator's identity from the X-Webauth-User header.";
     }
     {
       # No other vhost may reach a gated app's port: not through `proxied`, a
@@ -637,8 +706,11 @@ in
     {
       # Control 2 (header, "Identity"). Each entry is one tailnet address,
       # never a range or `all`, never a server's; and the console's vhost has
-      # exactly those allows then `deny all;` at server level, and no
-      # `satisfy any` that would let tailscale-nginx-auth alone admit a caller.
+      # exactly untaggedDeny, those allows, then `deny all;` at server level.
+      # Nothing may undo that: no allow or deny in any of its locations (nginx
+      # then uses the location's rules and drops the server's), and no
+      # `satisfy any`, in the vhost or the http block, that would let
+      # tailscale-nginx-auth alone admit a caller.
       assertion =
         let
           v = config.services.nginx.virtualHosts."hasala.${zone}";
@@ -646,7 +718,6 @@ in
             ip:
             builtins.match "100\\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\\.[0-9]{1,3}\\.[0-9]{1,3}" ip != null
             || builtins.match "fd7a:115c:a1e0:[0-9a-f:]+" ip != null;
-          serverAddresses = lib.concatLists (lib.attrValues servers);
           vhostText = lib.concatStringsSep "\n" (
             [ v.extraConfig ] ++ map (l: l.extraConfig) (lib.attrValues v.locations)
           );
@@ -656,11 +727,19 @@ in
           consoleAllow != [ ]
           && lib.all isTailnetAddress consoleAllow
           && !(lib.any (ip: lib.elem ip serverAddresses) consoleAllow)
-          && v.extraConfig == serverExtra.hasala
+          && v.extraConfig == serverConfig "hasala"
           && lib.hasSuffix "deny all;\n" v.extraConfig
+          && !(lib.any (
+            l:
+            hasDirective [
+              "allow"
+              "deny"
+            ] l.extraConfig
+          ) (lib.attrValues v.locations))
           && !(lib.hasInfix "satisfy" vhostText)
+          && !(hasDirective [ "satisfy" ] httpLevelConfig)
         );
-      message = "hasala.${zone} must answer only consoleDevices (modules/services/lan-proxy.nix): each entry a single tailnet address of Saleh's own Mac, iPhone or iPad, never a range, `all`, or a server node (${lib.concatStringsSep ", " (lib.attrNames servers)}), with the vhost's server config exactly those `allow`s then `deny all;` and no `satisfy`. tailscale-nginx-auth vouches for every untagged node logged in as salehtl@github, servers included.";
+      message = "hasala.${zone} must answer only consoleDevices (modules/services/lan-proxy.nix): each entry a single tailnet address of Saleh's own Mac, iPhone or iPad, never a range, `all`, or a server node (${lib.concatStringsSep ", " (lib.attrNames servers)}), with the vhost's server config exactly the stopgap `deny`s (untaggedDeny), those `allow`s, then `deny all;`, no `allow` or `deny` in any of its locations (a location's own rules replace the server's), and no `satisfy` in the vhost or the http block (commonHttpConfig, httpConfig, appendHttpConfig). tailscale-nginx-auth vouches for every untagged node logged in as salehtl@github, servers included.";
     }
     {
       assertion = !(lib.elem ledgerPort (lib.attrValues proxied));

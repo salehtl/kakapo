@@ -29,7 +29,7 @@ let
 in
 buildNpmPackage (finalAttrs: {
   pname = "cf";
-  version = "1.0.0-beta.12";
+  version = "1.0.0-beta.14";
 
   # The published npm tarball, not the GitHub source: dist/ ships prebuilt, and
   # the source's devDependencies point at tarballs under the monorepo's vendor/
@@ -37,7 +37,7 @@ buildNpmPackage (finalAttrs: {
   # version, so it pins exactly what `npm install cf` would fetch.
   src = fetchurl {
     url = "https://registry.npmjs.org/cf/-/cf-${finalAttrs.version}.tgz";
-    hash = "sha512-tyQ+Jpnw+4NDwDtl7ZNteXBm7N0TeJ6gYww79kkabpcYoCEXkUUpmt9BlDUKH8ub17tjAeiuyqa9NQzH0vp2Aw==";
+    hash = "sha512-CIDV5JAUIhJRTCPG3gR72BBzNbPH0NqpF/C3d6mPTXFd1LMbAgfAv6C0sg0MtLLb0blz1kFudDDd4azlKQ/p9A==";
   };
 
   # npm tarballs carry no lockfile, so ./package-lock.json is generated and

@@ -311,6 +311,13 @@ let
   # instead of lo. Forwarded traffic (exit-node clients) never passes OUTPUT,
   # and zapret's own packets go to remote addresses, so neither is touched.
   outMatch = "-p tcp --dport 443 -m addrtype --dst-type LOCAL";
+  # lan-proxy-out's one rule, per family; the spoof check `-C`s the same text.
+  # `--reject-with tcp-reset` is valid only in a rule that itself matches
+  # `-p tcp` (the jump's match in OUTPUT does not count). Without it the
+  # kernel refuses the rule, firewall-start stops before it attaches nixos-fw
+  # to INPUT, and a reload then runs firewall-stop: on 2026-10-12 a test
+  # activation left kakapo with no firewall for ~90 seconds that way.
+  outReject = src: "-s ${src} -p tcp -j REJECT --reject-with tcp-reset";
   tsInterface = config.services.tailscale.interfaceName;
 
   # Control 1 in the header, tested the way it would be attacked: as a local
@@ -336,11 +343,11 @@ let
       #    can only be checked this way.
       iptables -w -C OUTPUT ${outMatch} -j lan-proxy-out 2>/dev/null \
         || note "iptables OUTPUT has no jump to lan-proxy-out"
-      iptables -w -C lan-proxy-out -s ${tailnetV4} -j REJECT --reject-with tcp-reset 2>/dev/null \
+      iptables -w -C lan-proxy-out ${outReject tailnetV4} 2>/dev/null \
         || note "lan-proxy-out does not reset ${tailnetV4}"
       ip6tables -w -C OUTPUT ${outMatch} -j lan-proxy-out 2>/dev/null \
         || note "ip6tables OUTPUT has no jump to lan-proxy-out"
-      ip6tables -w -C lan-proxy-out -s ${tailnetV6} -j REJECT --reject-with tcp-reset 2>/dev/null \
+      ip6tables -w -C lan-proxy-out ${outReject tailnetV6} 2>/dev/null \
         || note "ip6tables lan-proxy-out does not reset ${tailnetV6}"
 
       # 2. Control: nginx answers nobody on ${lanAddress}:443 from the LAN
@@ -460,12 +467,12 @@ in
   networking.firewall.extraCommands = ''
     iptables -w -N lan-proxy-out 2>/dev/null || true
     iptables -w -F lan-proxy-out
-    iptables -w -A lan-proxy-out -s ${tailnetV4} -j REJECT --reject-with tcp-reset
+    iptables -w -A lan-proxy-out ${outReject tailnetV4}
     iptables -w -C OUTPUT ${outMatch} -j lan-proxy-out 2>/dev/null \
       || iptables -w -I OUTPUT ${outMatch} -j lan-proxy-out
     ip6tables -w -N lan-proxy-out 2>/dev/null || true
     ip6tables -w -F lan-proxy-out
-    ip6tables -w -A lan-proxy-out -s ${tailnetV6} -j REJECT --reject-with tcp-reset
+    ip6tables -w -A lan-proxy-out ${outReject tailnetV6}
     ip6tables -w -C OUTPUT ${outMatch} -j lan-proxy-out 2>/dev/null \
       || ip6tables -w -I OUTPUT ${outMatch} -j lan-proxy-out
   '';

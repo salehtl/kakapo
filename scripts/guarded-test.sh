@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Activate a built system with `switch-to-configuration test`, then watch the
 # house's DNS for ~40s and roll back to the running system if AdGuard stops
-# answering (3 failed probes in a row), if the firewall did not load, or if
-# the activation itself failed.
+# answering (3 failed probes in a row), if the firewall did not load, if any
+# unit's reload failed, or if the activation itself failed.
 # Use it for any change that can touch AdGuard or networking -- the whole
 # house resolves through kakapo.
 #
@@ -71,6 +71,19 @@ if sudo journalctl -q -u firewall.service --since "$started" --no-pager -o cat |
   exit 4
 fi
 
+# Any other reload that failed. A unit whose reload fails stays active on its
+# OLD config, so nothing is newly failed and switch-to-configuration exits 4:
+# a failed nginx reload keeps the previous vhosts live while the test looks
+# clean. PID 1 logs "Reload failed for <unit description>." for each one.
+reload_failed=$(sudo journalctl -q --since "$started" --no-pager -o cat _PID=1 | grep '^Reload failed for ' | sort -u)
+if [ -n "$reload_failed" ]; then
+  echo "A RELOAD FAILED (activation exit $rc) -> rolling back to $prev:" >&2
+  printf '%s\n' "$reload_failed" | sed 's/^/  /' >&2
+  sudo "$prev/bin/switch-to-configuration" test >/dev/null 2>&1
+  echo "rolled back (exit $?)" >&2
+  exit 4
+fi
+
 fails=0
 for i in $(seq 1 20); do
   if probe; then fails=0; else
@@ -104,8 +117,8 @@ if [ "$rc" -ne 0 ] && { [ "$rc" -ne 4 ] || [ -n "$new_failed" ]; }; then
   sudo "$prev/bin/switch-to-configuration" test >/dev/null 2>&1
   exit 4
 fi
-# Exit 4 with no newly failed unit can also be a reload that failed and left
-# its unit active. The firewall's was checked above; name any other.
+# Exit 4 with no newly failed unit and no failed reload (both checked above):
+# units that were already failed before activation.
 if [ "$rc" -eq 4 ]; then
-  echo "note: exit 4 with no newly failed unit: units already failed before activation ($(printf '%s\n' "$failed_before" | xargs)), or a failed reload: $(sudo journalctl -q --since "$started" --no-pager -o cat _PID=1 | grep '^Reload failed for ' | tr '\n' ' ')"
+  echo "note: exit 4 with no newly failed unit and no failed reload: units already failed before activation ($(printf '%s\n' "$failed_before" | xargs))"
 fi

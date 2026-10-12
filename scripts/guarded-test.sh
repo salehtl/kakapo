@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Activate a built system with `switch-to-configuration test`, then watch the
 # house's DNS for ~40s and roll back to the running system if AdGuard stops
-# answering (3 failed probes in a row), or if the activation itself failed.
+# answering (3 failed probes in a row), if the firewall did not load, or if
+# the activation itself failed.
 # Use it for any change that can touch AdGuard or networking -- the whole
 # house resolves through kakapo.
 #
@@ -34,16 +35,42 @@ probe() {
   "$dig" +short +time=2 +tries=1 @10.0.0.215 one.one.one.one A | grep -q '^[0-9]' &&
     ip -4 -o addr show dev "$lan" | grep -q ' 10\.0\.0\.215/' &&
     sudo iptables -C nixos-fw -i "$lan" -p udp --dport 53 -j nixos-fw-accept 2>/dev/null &&
-    sudo iptables -C nixos-fw -i "$lan" -p tcp --dport 443 -j nixos-fw-accept 2>/dev/null
+    sudo iptables -C nixos-fw -i "$lan" -p tcp --dport 443 -j nixos-fw-accept 2>/dev/null &&
+    firewall_attached
+}
+# nixos-fw's rules prove nothing on their own: when firewall-start fails
+# part-way they are left in a chain INPUT no longer jumps to, and INPUT then
+# accepts everything (2026-10-12: the checks above passed throughout).
+firewall_attached() {
+  sudo iptables -C INPUT -j nixos-fw 2>/dev/null &&
+    sudo ip6tables -C INPUT -j nixos-fw 2>/dev/null
 }
 # What switch-to-configuration counts as failed.
 failed_units() { systemctl list-units --state=failed,auto-restart --plain --no-legend | cut -d' ' -f1 | sort; }
 
-probe || { echo "DNS or the LAN path already failing before activation; not activating" >&2; exit 2; }
+probe || { echo "DNS, the LAN path or the firewall already failing before activation; not activating" >&2; exit 2; }
 failed_before=$(failed_units)
+started=$(date '+%Y-%m-%d %H:%M:%S')
 sudo "$new/bin/switch-to-configuration" test
 rc=$?
 echo "activation exit $rc"
+
+# A firewall that fails to load does not stop DNS, and does not fail a unit:
+# a failed reload runs firewall-stop, leaves firewall.service active, and
+# switch-to-configuration exits 4 with no newly failed unit. On 2026-10-12
+# that passed this script while kakapo had no firewall. So check at once,
+# before the watch: the reload's own message, and INPUT's jump to nixos-fw.
+if sudo journalctl -q -u firewall.service --since "$started" --no-pager -o cat | grep -q 'Failed to reload firewall' ||
+  ! firewall_attached; then
+  echo "FIREWALL DID NOT LOAD (activation exit $rc) -> rolling back to $prev" >&2
+  sudo journalctl -q -u firewall.service --since "$started" --no-pager -o cat | tail -n 5 >&2
+  sudo "$prev/bin/switch-to-configuration" test >/dev/null 2>&1
+  # The rollback reloads the firewall only if its unit changed.
+  firewall_attached || sudo systemctl restart firewall.service
+  if firewall_attached; then echo "rolled back; firewall attached" >&2; else echo "ROLLBACK DID NOT RESTORE THE FIREWALL (INPUT does not jump to nixos-fw): systemctl status firewall" >&2; fi
+  exit 4
+fi
+
 fails=0
 for i in $(seq 1 20); do
   if probe; then fails=0; else
@@ -51,9 +78,9 @@ for i in $(seq 1 20); do
     echo "probe $i failed ($fails in a row)"
   fi
   if [ "$fails" -ge 3 ]; then
-    echo "DNS DOWN -> rolling back to $prev" >&2
+    echo "DNS, the LAN path or the firewall DOWN -> rolling back to $prev" >&2
     sudo "$prev/bin/switch-to-configuration" test >/dev/null 2>&1
-    if probe; then echo "rolled back; DNS answering" >&2; else echo "ROLLBACK DID NOT RESTORE DNS: systemctl restart adguardhome" >&2; fi
+    if probe; then echo "rolled back; DNS answering, firewall attached" >&2; else echo "ROLLBACK DID NOT RESTORE DNS OR THE FIREWALL: systemctl restart adguardhome (or firewall)" >&2; fi
     exit 1
   fi
   sleep 2
@@ -68,15 +95,17 @@ if [ "$(readlink /run/current-system)" != "$new" ]; then
   exit 3
 fi
 
-# A failed activation can leave the host broken while DNS still answers (a
-# firewall that failed to load leaves INPUT open). Exit 4 means units failed;
-# only those that were not already failed before count against this test.
+# A failed activation can leave the host broken while DNS still answers.
+# Exit 4 means units failed; only those that were not already failed before
+# count against this test.
 new_failed=$(comm -13 <(printf '%s\n' "$failed_before") <(failed_units) | xargs)
 if [ "$rc" -ne 0 ] && { [ "$rc" -ne 4 ] || [ -n "$new_failed" ]; }; then
   echo "ACTIVATION FAILED (exit $rc; newly failed: ${new_failed:-none}) -> rolling back to $prev" >&2
   sudo "$prev/bin/switch-to-configuration" test >/dev/null 2>&1
   exit 4
 fi
+# Exit 4 with no newly failed unit can also be a reload that failed and left
+# its unit active. The firewall's was checked above; name any other.
 if [ "$rc" -eq 4 ]; then
-  echo "note: exit 4 came only from units already failed before activation: $(printf '%s\n' "$failed_before" | xargs)"
+  echo "note: exit 4 with no newly failed unit: units already failed before activation ($(printf '%s\n' "$failed_before" | xargs)), or a failed reload: $(sudo journalctl -q --since "$started" --no-pager -o cat _PID=1 | grep '^Reload failed for ' | tr '\n' ' ')"
 fi

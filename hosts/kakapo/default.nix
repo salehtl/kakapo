@@ -13,6 +13,7 @@
     ../../modules/notify.nix
     ../../modules/sops.nix
     ../../modules/nodejs.nix
+    ../../modules/python.nix
     ../../modules/services/adguard.nix
     ../../modules/services/grampsweb.nix
     ../../modules/services/hasala.nix

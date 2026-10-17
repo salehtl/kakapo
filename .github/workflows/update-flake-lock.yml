@@ -5,7 +5,7 @@ name: update-flake-lock
 # receiving nixos-26.05 security backports.
 on:
   schedule:
-    - cron: "0 2 * * 1" # Mondays 06:00 Asia/Dubai
+    - cron: "0 2 * * 0" # Sundays 06:00 Asia/Dubai
   workflow_dispatch:
 
 # Every action is pinned to a commit: a moved tag or branch must not change

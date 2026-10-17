@@ -43,6 +43,15 @@ in
       ];
     };
 
+    # ntfy's login (modules/services/ntfy.nix): NTFY_AUTH_USERS='saleh:<bcrypt>:user'
+    # for its environment file. The same file keeps the plain password
+    # (ntfy/saleh_password), which is not deployed.
+    secrets."ntfy/env" = {
+      sopsFile = ../secrets/ntfy.yaml;
+      key = "ntfy/env";
+      restartUnits = [ "ntfy-sh.service" ];
+    };
+
     # Cloudflare API token for the *.salehtl.com DNS-01 challenge
     # and the public A records (modules/services/lan-proxy.nix): Zone:DNS:Edit +
     # Zone:Read on salehtl.com. Read at each use, so nothing needs restarting.

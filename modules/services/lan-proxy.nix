@@ -77,8 +77,8 @@
 #          directly, without nginx: Grafana on 127.0.0.1:3000 trusts a
 #          Tailscale-User-Login header from loopback (admin for
 #          salehtl@github), ledger on 127.0.0.1:8090 has no login, and ntfy on
-#          127.0.0.1:2586 is open. (T3 Code on 127.0.0.1:3773 has only its own
-#          device pairing there.)
+#          127.0.0.1:2586 takes anonymous publishes. (T3 Code on
+#          127.0.0.1:3773 has only its own device pairing there.)
 #
 # Adding a service: add `<name> = <port>;` to `proxied` below. It becomes
 # https://<name>.salehtl.com, proxied to 127.0.0.1:<port>, and its DNS record
@@ -174,6 +174,10 @@ let
     photos = config.services.immich.port;
     # Gramps Web has its own accounts (modules/services/grampsweb.nix).
     gw = 5000;
+    # ntfy: reading needs its login; publishing is refused here (serverExtra)
+    # and left to kakapo's own services on loopback (modules/services/ntfy.nix).
+    # On the house network so alerts arrive while the phone's Tailscale is off.
+    ntfy = 2586;
   };
 
   # name -> another machine on the LAN. Its traffic leaves kakapo from
@@ -196,9 +200,6 @@ let
     # T3 Code (always on); agents run as saleh, who has
     # passwordless sudo (modules/services/t3code.nix).
     t3 = 3773;
-    # ntfy is open to whoever reaches it; this gate is its access control
-    # (modules/services/ntfy.nix).
-    ntfy = 2586;
     # Hasala's operator console (waitlist approval, invites, mail log;
     # modules/services/hasala.nix). It has no login of its own: it trusts
     # X-Webauth-User and X-Webauth-Tailnet, which tailscale-nginx-auth sets on
@@ -236,12 +237,15 @@ let
     home = ''
       client_max_body_size 0;
     '';
-    # Subscribers hold a stream open for hours; ntfy also takes attachments.
+    # Subscribers hold a stream open for hours. Read-only from outside:
+    # anonymous visitors may publish to ntfy (kakapo's services do, on
+    # 127.0.0.1:2586), so the proxy refuses every publish, including the
+    # GET forms. Server-level `if ... return` only, never a location.
     ntfy = ''
+      if ($request_method !~ ^(GET|HEAD)$) { return 403; }
+      if ($uri ~ ^/[^/]+/(publish|send|trigger)$) { return 403; }
       proxy_buffering off;
-      proxy_request_buffering off;
       proxy_read_timeout 3h;
-      client_max_body_size 20M;
     '';
     # Family tree imports (GEDCOM, .gramps) and media arrive in one request.
     gw = ''

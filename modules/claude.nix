@@ -102,7 +102,7 @@ in
     - Merging into `master` is a deploy. Treat it as one.
     - autoUpgrade only builds what `flake.lock` pins. It never moves the lock,
       so nixpkgs stays frozen until a `flake.lock` bump PR is merged (a
-      workflow opens one every Monday).
+      workflow opens one every Sunday).
     - It can fail every night with nothing to show for it. A `flake.lock` that
       needed updating broke it from 2026-06-01 to 2026-10-03 — 250 failed runs,
       no alert. Before assuming this host is current, check:

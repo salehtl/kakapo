@@ -9,9 +9,10 @@
 #           Kill switch: `sudo systemctl stop hasala.target`.
 # Ingress:  PUBLIC through its OWN Cloudflare Tunnel (cloudflared-hasala.service,
 #           outbound only; no port opened; approved by Saleh 2026-10-11): api.hasala.app +
-#           ^/(api/v1/.*|hooks/gmail/pubsub)$ -> 127.0.0.1:8471, everything
-#           else 404. Rendered and asserted by the module, linted by hasala's
-#           CI. The API is never behind the LAN proxy (modules/services/lan-proxy.nix).
+#           ^/(api/v1/.*|hooks/gmail/pubsub|hooks/outlook/graph(/lifecycle)?)$
+#           -> 127.0.0.1:8471, everything else 404. Rendered and asserted
+#           by the module, linted by hasala's CI. The API is never behind
+#           the LAN proxy (modules/services/lan-proxy.nix).
 #           The tunnel is LOCALLY managed (config_src = local): never migrate
 #           it to remote/dashboard management, which would replace this
 #           allowlist with whatever the dashboard says.
@@ -166,6 +167,18 @@ in
     # projects/hasala-511307/topics/gmail-push. Order: topic and service
     # account, then the host PR setting gmail.*, then the subscription
     # (hasala's infra/qa/HOST-PR.md, "Gmail: the link now, the push later").
+
+    # Outlook's mailbox link (M8c): the Entra app's client id (a lowercase
+    # UUID; not secret, it ships in the app), with the route key above, which
+    # both providers share. Its Graph push (M8d): both URLs or none, exactly
+    # these two; the device creates the Graph subscription itself, so nothing
+    # Microsoft-side is in secrets/ (hasala's infra/qa/HOST-PR.md, "Outlook:
+    # the link and the hook").
+    outlook = {
+      clientId = "0cbe5805-2e22-4f55-9785-9d3bdaf7009d";
+      notificationUrl = "https://api.hasala.app/hooks/outlook/graph";
+      lifecycleUrl = "https://api.hasala.app/hooks/outlook/graph/lifecycle";
+    };
 
     backup = {
       enable = true;

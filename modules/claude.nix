@@ -15,6 +15,29 @@ in
     You are on **${host}**, a single-host NixOS server. Everything about this
     machine is declared in one flake: **github:salehtl/kakapo**.
 
+    ## How to write to Saleh
+
+    Saleh's rule (2026-10-17): write every message to Saleh in **ASD-STE100
+    Simplified Technical English**, and keep it short. This applies to
+    replies, questions, status reports and summaries. Code, code comments,
+    commit messages and repository documents keep their usual style.
+
+    - Use STE dictionary words, with their approved meanings. Use one word
+      for one meaning ("use", not "utilize"; "start", not "kick off").
+    - Keep technical names as they are: commands, paths, units, services,
+      products and error text. Put them in backticks.
+    - Write 20 words or fewer in an instruction and 25 words or fewer in a
+      description. Write 6 sentences or fewer in a paragraph.
+    - Write one instruction in a sentence, with the verb first: "Merge PR #19."
+    - Use the active voice and simple tenses (present, past, future).
+      Do not use phrasal verbs, contractions or "-ing" verb forms.
+    - Keep "the" and "a". Use 3 words or fewer in a noun cluster.
+    - Use lists or tables for 3 or more items.
+    - Give the result first. Then give only the necessary details. Do not
+      repeat information.
+    - In a warning, give the instruction first, then the reason: "Do not
+      merge PR #20. It deletes the DNS records."
+
     ## Working on a project, not the host?
 
     Projects live in `~/src/<name>`, and their rules are in

@@ -9,9 +9,10 @@
 #           Kill switch: `sudo systemctl stop hasala.target`.
 # Ingress:  PUBLIC through its OWN Cloudflare Tunnel (cloudflared-hasala.service,
 #           outbound only; no port opened; approved by Saleh 2026-10-11): api.hasala.app +
-#           ^/(api/v1/.*|hooks/gmail/pubsub)$ -> 127.0.0.1:8471, everything
-#           else 404. Rendered and asserted by the module, linted by hasala's
-#           CI. The API is never behind the LAN proxy (modules/services/lan-proxy.nix).
+#           ^/(api/v1/.*|hooks/gmail/pubsub|hooks/outlook/graph(/lifecycle)?)$
+#           -> 127.0.0.1:8471, everything else 404. Rendered and asserted
+#           by the module, linted by hasala's CI. The API is never behind
+#           the LAN proxy (modules/services/lan-proxy.nix).
 #           The tunnel is LOCALLY managed (config_src = local): never migrate
 #           it to remote/dashboard management, which would replace this
 #           allowlist with whatever the dashboard says.
@@ -49,9 +50,10 @@
 #             2. The console's vhost answers only `consoleDevices`, Saleh's own
 #                Mac and iPhone by tailnet address (`allow ...; deny all;`),
 #                never kakapo, homeassistant or any server.
-#           Defence in depth, out-of-band and Saleh's to do: tag kakapo and
-#           homeassistant (e.g. tag:server) in the Tailscale admin, so
-#           nginx-auth refuses them on every gated name (CLAUDE.md).
+#           lan-proxy.nix also denies kakapo's and homeassistant's tailnet
+#           addresses on every gated vhost (`untaggedDeny`), a stopgap until
+#           Saleh tags both (tag:server) in the Tailscale admin, out-of-band:
+#           nginx-auth then refuses them on every gated name (CLAUDE.md).
 # Secrets:  secrets/hasala.yaml (modules/sops.nix), all through LoadCredential=.
 # Ports:    127.0.0.1 only: API 8471, metrics 9471, cloudflared metrics 9472,
 #           console 8472, console healthz 9473.
@@ -152,15 +154,31 @@ in
     # refusal is already in place when asc is switched on.
     asc.refusedKeyIds = [ "275JBFHQ4L" ];
 
-    # Gmail push stays off: the [gmail] group (google.iosClientId, gmail.*,
-    # mailboxRouteKeyFile) is all or nothing (M8), and its push subscription
-    # (projects/hasala-511307/subscriptions/<name>, endpoint and audience
-    # https://api.hasala.app/hooks/gmail/pubsub) and the service account it
-    # signs as do not exist yet. Known: client id
-    # 987620996339-4tbl1o14pf309u5h9bjatnaipvqg1ob9.apps.googleusercontent.com,
-    # topic projects/hasala-511307/topics/gmail-push. The phone still reads
-    # Gmail itself; push only adds wake-ups. hasala/mailbox_route_key waits in
-    # secrets/hasala.yaml for it.
+    # Gmail's mailbox link (M8a): the iOS client id (not secret; it ships in
+    # the app, ios/Config/Shared.xcconfig) and the route key, both or neither.
+    # It mounts the app's Connect Gmail routes; without gmail.* below the app
+    # fetches mail when opened or refreshed in the background, with no wakes.
+    google.iosClientId = "987620996339-4tbl1o14pf309u5h9bjatnaipvqg1ob9.apps.googleusercontent.com";
+    mailboxRouteKeyFile = secret "mailbox_route_key";
+    # Gmail's Pub/Sub push (M8b) stays off: all four or none, only with the
+    # link, and its push subscription (projects/hasala-511307/subscriptions/
+    # <name>, endpoint and audience https://api.hasala.app/hooks/gmail/pubsub)
+    # and the service account it signs as do not exist yet. Known: topic
+    # projects/hasala-511307/topics/gmail-push. Order: topic and service
+    # account, then the host PR setting gmail.*, then the subscription
+    # (hasala's infra/qa/HOST-PR.md, "Gmail: the link now, the push later").
+
+    # Outlook's mailbox link (M8c): the Entra app's client id (a lowercase
+    # UUID; not secret, it ships in the app), with the route key above, which
+    # both providers share. Its Graph push (M8d): both URLs or none, exactly
+    # these two; the device creates the Graph subscription itself, so nothing
+    # Microsoft-side is in secrets/ (hasala's infra/qa/HOST-PR.md, "Outlook:
+    # the link and the hook").
+    outlook = {
+      clientId = "0cbe5805-2e22-4f55-9785-9d3bdaf7009d";
+      notificationUrl = "https://api.hasala.app/hooks/outlook/graph";
+      lifecycleUrl = "https://api.hasala.app/hooks/outlook/graph/lifecycle";
+    };
 
     backup = {
       enable = true;

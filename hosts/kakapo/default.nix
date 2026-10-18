@@ -68,6 +68,8 @@
     ];
     openssh.authorizedKeys.keys = [
       "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAIN0xPWnKwUvjBNhRRyhuXcgdsCwl78vxow4N2EB7SX2IAAAACnNzaDprYWthcG8= saleh kakapo-yubikey"
+      # Second YubiKey (2026-10-18), kept apart from the first as a backup.
+      "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAIM3dCHcJciaFpvyZgtrpx9aB8NeJCvOvf4GwDTjINJvZAAAAEXNzaDprYWthcG8tYmFja3Vw saleh kakapo-yubikey-2"
     ];
   };
   users.users.humaid = {

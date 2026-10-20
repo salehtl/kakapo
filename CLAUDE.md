@@ -163,7 +163,11 @@ curl -s http://127.0.0.1:8090/api/health
 
 ### Release a new hasala version to QA
 
-kakapo runs the hasala commit in `flake.nix`'s `hasala.url` (a rev, so `nix flake update` never moves it). Pick a commit of hasala `main` whose CI is green (its `nixos-vm` job boots this same module), then on a branch:
+kakapo runs the hasala commit in `flake.nix`'s `hasala.url` (a rev, so `nix flake update` never moves it).
+
+**Automatic (since 2026-10-20, approved by Saleh):** `.github/workflows/hasala-release.yml` runs every hour. It picks the newest hasala `main` commit after the pin that changes what kakapo runs (`server/` without `server/oracle/`, `infra/qa/nix/` without its tests, `flake.nix`, `flake.lock`) and whose `gate`, `vuln`, `secrets` and `nixos-vm` jobs passed, validates the bump (`nix flake check` + kakapo build, then reports `check` and `build` itself, as `update-flake-lock.yml` does) and opens or updates the `hasala-release` PR. That PR **auto-merges** unless the release changes a migration (`server/internal/pg/migrations/`) or the module (`infra/qa/nix/`, which is evaluated as part of this host's configuration): then it gets the `needs-review` label and waits for Saleh. This is the one standing exception to "agents never merge": the workflow merges only what that rule allows. A merged release reaches the host at 04:00; nothing runs `guarded-test.sh` for it.
+
+**By hand** (to release sooner, or a commit the workflow would not pick): pick a commit of hasala `main` whose CI is green (its `nixos-vm` job boots this same module), then on a branch:
 
 ```sh
 sed -i 's|github:salehtl/hasala/[0-9a-f]*|github:salehtl/hasala/<full sha>|' flake.nix

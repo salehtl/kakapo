@@ -40,7 +40,7 @@
     # none exists yet, and once one does it can replace the rev.)
     # Deliberately NO `follows`: the host runs exactly the closure hasala's CI
     # built and tested (its own nixos-26.05 lock, Go 1.27 from nixos-unstable).
-    hasala.url = "github:salehtl/hasala/c7c5d76eece7ce4cfa0784cdad6c80c145f672d0";
+    hasala.url = "github:salehtl/hasala/55e6c79f8c1e54734d954b4b455cfe3866137a45";
   };
 
   outputs =

@@ -23,7 +23,7 @@
   ...
 }:
 let
-  image = "ghcr.io/gramps-project/grampsweb:26.10.0@sha256:27017b77784ebc8fe9b4b84e3baab8fa529f1f715f4691bc5d1979b874c216ec";
+  image = "ghcr.io/gramps-project/grampsweb:26.10.2@sha256:81291e399390041e9dcb2ffc9f1b67d44c5151b3c3604a9d49a3d8bbe60ee578";
   valkey = "docker.io/valkey/valkey:8-alpine@sha256:081c2f5cb575efc901aa80ff9cdbd1ec6a301682fd35e1ebb4b0990a4a4a8507";
   network = "grampsweb";
   state = "/var/lib/grampsweb";

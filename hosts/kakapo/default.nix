@@ -8,6 +8,7 @@
   imports = [
     ./hardware.nix
     ../../modules/base.nix
+    ../../modules/ca-trust.nix
     ../../modules/server.nix
     ../../modules/claude.nix
     ../../modules/notify.nix

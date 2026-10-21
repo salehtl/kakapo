@@ -27,6 +27,7 @@ let
   valkey = "docker.io/valkey/valkey:8-alpine@sha256:081c2f5cb575efc901aa80ff9cdbd1ec6a301682fd35e1ebb4b0990a4a4a8507";
   network = "grampsweb";
   state = "/var/lib/grampsweb";
+  caBundle = "/etc/ssl/certs/ca-certificates.crt";
   volumes = {
     users = "/app/users";
     indexdir = "/app/indexdir";
@@ -40,8 +41,14 @@ let
   app = {
     inherit image;
     networks = [ network ];
-    volumes = lib.mapAttrsToList (dir: path: "${state}/${dir}:${path}") volumes;
+    # The host's root list (modules/ca-trust.nix), not the image's, for the
+    # system OpenSSL (SMTP) and for requests. The image's own certifi stays.
+    volumes = lib.mapAttrsToList (dir: path: "${state}/${dir}:${path}") volumes ++ [
+      "${config.security.pki.caBundle}:${caBundle}:ro"
+    ];
     environment = {
+      SSL_CERT_FILE = caBundle;
+      REQUESTS_CA_BUNDLE = caBundle;
       GRAMPSWEB_TREE = "Gramps Web"; # created empty on first start
       GRAMPSWEB_BASE_URL = "https://gw.salehtl.com";
       GRAMPSWEB_CELERY_CONFIG__broker_url = "redis://grampsweb-redis:6379/0";

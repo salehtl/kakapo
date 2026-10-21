@@ -148,7 +148,7 @@ in
   # Rules for project work, as opposed to host work. Claude Code loads every
   # CLAUDE.md from the working directory up, so linking the guide as
   # ~/src/CLAUDE.md reaches every session started in a project there,
-  # including T3 Code's agents, without loading it into host sessions.
+  # without loading it into host sessions.
   environment.etc."claude-code/projects.md".source = ./claude-projects.md;
   # Claude desktop's SSH sessions upload a generic linux-x64 Claude Code build
   # to ~/.claude/remote/ccd-cli and run it there. NixOS's stub

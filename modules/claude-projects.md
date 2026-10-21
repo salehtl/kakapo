@@ -120,7 +120,7 @@ the host.
   To reach a dev server from another device, use an SSH tunnel
   (`ssh -L 5173:127.0.0.1:5173 kakapo`). If a phone needs it, ask the user to
   give it a tailnet-only name in the kakapo flake.
-- Ports already taken, never reuse: 22, 53, 443, 2283, 3000, 3001, 3003, 3773,
+- Ports already taken, never reuse: 22, 53, 443, 2283, 3000, 3001, 3003,
   5432, 8090, 8471, 8472, 9090, 9100, 9471, 9472, 9473, 9633, 9835. Check
   `ss -ltn` before picking one. 8471 is Hasala's API and is publicly routed
   through its tunnel: never bind it, even while hasalad is stopped. 8472 is

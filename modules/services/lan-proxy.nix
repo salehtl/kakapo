@@ -77,8 +77,7 @@
 #          directly, without nginx: Grafana on 127.0.0.1:3000 trusts a
 #          Tailscale-User-Login header from loopback (admin for
 #          salehtl@github), ledger on 127.0.0.1:8090 has no login, and ntfy on
-#          127.0.0.1:2586 takes anonymous publishes. (T3 Code on
-#          127.0.0.1:3773 has only its own device pairing there.)
+#          127.0.0.1:2586 takes anonymous publishes.
 #
 # Adding a service: add `<name> = <port>;` to `proxied` below. It becomes
 # https://<name>.salehtl.com, proxied to 127.0.0.1:<port>, and its DNS record
@@ -197,9 +196,6 @@ let
     # ledger has no login of its own; this gate is its only access control
     # (modules/services/ledger.nix).
     ledger = ledgerPort;
-    # T3 Code (always on); agents run as saleh, who has
-    # passwordless sudo (modules/services/t3code.nix).
-    t3 = 3773;
     # Hasala's operator console (waitlist approval, invites, mail log;
     # modules/services/hasala.nix). It has no login of its own: it trusts
     # X-Webauth-User and X-Webauth-Tailnet, which tailscale-nginx-auth sets on
@@ -252,11 +248,6 @@ let
       client_max_body_size 500M;
       proxy_read_timeout 600s;
       proxy_send_timeout 600s;
-    '';
-    # Agent sessions hold a websocket open for as long as a turn runs.
-    t3 = ''
-      proxy_read_timeout 1h;
-      proxy_send_timeout 1h;
     '';
     # The console answers Saleh's own devices only (consoleDevices), on top of
     # tailscale-nginx-auth and the console's login list. Server-level, so it
@@ -679,7 +670,7 @@ in
             ] l.extraConfig
           ) (lib.attrValues v.locations))
         ) gatedNames;
-      message = "A gated name (${lib.concatStringsSep ", " gatedNames}) is not fully behind tailscale-nginx-auth: it is missing from tailscaleAuth.virtualHosts, lacks the Expected-Tailnet check on /auth, has a location outside the gated `/` (tailscaleAuth guards only `/`), does not start its server config with the stopgap deny of kakapo and homeassistant (untaggedDeny), or has `allow`/`deny` in a location (which replaces the server's rules) or `satisfy` in the vhost or the http block (commonHttpConfig, httpConfig, appendHttpConfig). Grafana hands out admin from a header, ledger has no login, T3 Code runs agents as saleh, who has passwordless sudo, and Hasala's console takes its operator's identity from the X-Webauth-User header.";
+      message = "A gated name (${lib.concatStringsSep ", " gatedNames}) is not fully behind tailscale-nginx-auth: it is missing from tailscaleAuth.virtualHosts, lacks the Expected-Tailnet check on /auth, has a location outside the gated `/` (tailscaleAuth guards only `/`), does not start its server config with the stopgap deny of kakapo and homeassistant (untaggedDeny), or has `allow`/`deny` in a location (which replaces the server's rules) or `satisfy` in the vhost or the http block (commonHttpConfig, httpConfig, appendHttpConfig). Grafana hands out admin from a header, ledger has no login and Hasala's console takes its operator's identity from the X-Webauth-User header.";
     }
     {
       # No other vhost may reach a gated app's port: not through `proxied`, a

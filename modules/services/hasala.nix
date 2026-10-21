@@ -82,7 +82,6 @@ let
     443 # nginx, the LAN proxy
     2586 # ntfy
     3003 # Immich machine learning
-    3773 # T3 Code
     5000 # Gramps Web
     8090 # ledger
     config.services.adguardhome.port

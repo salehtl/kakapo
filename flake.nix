@@ -81,7 +81,6 @@
             # programs from other nixpkgs revisions then load that libasound
             # and fail on a glibc mismatch (Chromium did, 2026-10-07). kakapo is
             # headless with no audio, so give it an empty directory instead.
-            # Applied here so T3 Code's bundled claude-code gets it too.
             (final: prev: {
               claude-code = prev.claude-code.override { alsa-lib = final.emptyDirectory; };
             })

@@ -200,6 +200,10 @@ in
       onFailure = [ "notify-failure@%n.service" ];
       ntfyUrl = "http://127.0.0.1:2586/kakapo";
       healthCheck.enable = true;
+      # One notice per new early-access request (a waitlist entry that
+      # confirmed its address, now waiting in the console). It names nobody
+      # and opens the console.
+      earlyAccessNotice = true;
     };
 
     # Every Hasala unit, and the hasala-admin sandbox, gets these: the module's

@@ -33,12 +33,14 @@
     # Hasala's QA backend (modules/services/hasala.nix), for its NixOS module.
     # Pinned to a commit, not a branch: `nix flake update` cannot move a rev,
     # so the weekly lock bump never deploys unreleased hasala work. Releasing
-    # to QA is a PR that changes this rev to a CI-green commit of hasala main.
+    # to QA is a PR that changes this rev to a CI-green commit of hasala main:
+    # .github/workflows/hasala-release.yml opens one every hour when there is
+    # a new one, and it auto-merges unless it changes a migration or the module.
     # (hasala's infra/qa/HOST-PR.md suggests a release branch such as `qa`;
     # none exists yet, and once one does it can replace the rev.)
     # Deliberately NO `follows`: the host runs exactly the closure hasala's CI
     # built and tested (its own nixos-26.05 lock, Go 1.27 from nixos-unstable).
-    hasala.url = "github:salehtl/hasala/b91e70af1592bf3f1dfdade8e4bac3fbd362a751";
+    hasala.url = "github:salehtl/hasala/170ebcd91f5275420b223d2749f8962af3d0c90e";
   };
 
   outputs =

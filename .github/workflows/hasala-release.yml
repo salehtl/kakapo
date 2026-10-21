@@ -1,0 +1,219 @@
+name: hasala-release
+
+# Releases hasala to QA without anyone editing flake.nix. Every hour it looks
+# for a newer hasala `main` commit that changes what kakapo runs (server/,
+# infra/qa/nix/, flake.nix, flake.lock; not their tests), and whose server
+# checks passed. It
+# validates the bump the same way update-flake-lock does (flake check +
+# kakapo build, then reports `check` and `build` itself), and opens or
+# updates the `hasala-release` PR.
+#
+# Auto-merge (approved by Saleh 2026-10-20, option "b"): the PR merges itself
+# when the release changes no migration (server/internal/pg/migrations/) and
+# not the NixOS module (infra/qa/nix/), which is evaluated as part of this
+# host's configuration and so can change anything on it as root. A release
+# that changes either waits for Saleh: auto-merge is turned off on it and it
+# gets the `needs-review` label. Either
+# way, autoUpgrade deploys master at 04:00; hasala's `nixos-vm` job (it boots
+# this same module) is the test before that, not guarded-test.sh.
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: hasala-release
+  cancel-in-progress: false
+
+# Same split as update-flake-lock: third-party actions run in `plan` with a
+# read-only token; only `pull-request` can write, and it runs git and gh only.
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      id-token: write # FlakeHub Cache authenticates with OIDC
+      contents: read
+      pull-requests: read
+    outputs:
+      release: ${{ steps.pick.outputs.release }}
+      rev: ${{ steps.pick.outputs.rev }}
+      review: ${{ steps.pick.outputs.review }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: master
+          persist-credentials: false
+
+      # Plain git and gh against the public hasala repository: no credential
+      # beyond this job's read-only token.
+      - name: Pick the hasala commit to release
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pinned=$(grep -oP 'github:salehtl/hasala/\K[0-9a-f]{40}' flake.nix)
+          git clone --quiet --filter=blob:none https://github.com/salehtl/hasala.git "$RUNNER_TEMP/hasala"
+          cd "$RUNNER_TEMP/hasala"
+          if ! git merge-base --is-ancestor "$pinned" origin/main; then
+            echo "::error::the pinned hasala $pinned is not an ancestor of hasala main"
+            exit 1
+          fi
+          # What kakapo runs: hasalad (server/, minus the test-only oracle),
+          # the module (infra/qa/nix/, minus its tests) and the flake.
+          paths=(server ':!server/oracle' infra/qa/nix ':!infra/qa/nix/tests' flake.nix flake.lock)
+          # The newest main commit after the pin that changes any of it.
+          rev=$(git log -1 --format=%H "$pinned..origin/main" -- "${paths[@]}")
+          if [ -z "$rev" ]; then
+            echo "nothing to release: no server, infra/qa or flake change after $pinned"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Its server checks, from its push run on main. All four must have
+          # passed; anything else (running, failed, skipped) waits an hour.
+          ok=$(gh api "repos/salehtl/hasala/commits/$rev/check-runs?per_page=100" \
+            --jq '[.check_runs[] | select(.name | test("^(gate|vuln|secrets|nixos-vm)$")) | select(.conclusion == "success") | .name] | unique | length')
+          if [ "$ok" != 4 ]; then
+            echo "hasala $rev: $ok of 4 server checks (gate, vuln, secrets, nixos-vm) passed; waiting"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Nothing new if the open PR already pins this rev on top of master.
+          cd "$GITHUB_WORKSPACE"
+          head=$(gh pr list --repo "$GITHUB_REPOSITORY" --head hasala-release --state open --json headRefOid --jq '.[0].headRefOid // ""')
+          if [ -n "$head" ]; then
+            git fetch --quiet origin "$head"
+            if [ "$(git rev-parse "$head^")" = "$(git rev-parse HEAD)" ] && git show "$head:flake.nix" | grep -q "github:salehtl/hasala/$rev"; then
+              echo "the open hasala-release PR already pins $rev on master"
+              echo "release=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          cd "$RUNNER_TEMP/hasala"
+          review=$(git diff --name-only "$pinned" "$rev" -- server/internal/pg/migrations/ infra/qa/nix ':!infra/qa/nix/tests')
+          {
+            echo "release=true"
+            echo "rev=$rev"
+            if [ -n "$review" ]; then echo "review=true"; else echo "review=false"; fi
+          } >> "$GITHUB_OUTPUT"
+          mkdir -p "$GITHUB_WORKSPACE/.release"
+          {
+            echo "Automated QA release of hasala: \`${pinned:0:7}\` → \`${rev:0:7}\`."
+            echo
+            echo "hasala's \`gate\`, \`vuln\`, \`secrets\` and \`nixos-vm\` passed on \`${rev:0:7}\`. Validated by the run that opened this PR: \`nix flake check\` passed and \`nixosConfigurations.kakapo\` built (the \`check\` and \`build\` statuses link to it)."
+            echo
+            if [ -n "$review" ]; then
+              echo "**This release changes migrations or the NixOS module, so auto-merge is off.** Read these, then merge by hand:"
+              echo
+              echo "$review" | sed 's/^/- `/; s/$/`/'
+            else
+              echo "No migration or module changes: auto-merge is on. autoUpgrade deploys it at 04:00 Asia/Dubai."
+            fi
+            echo
+            echo "Commits that change what kakapo runs:"
+            echo
+            git log --format='- %h %s' "$pinned..$rev" -- "${paths[@]}"
+          } > "$GITHUB_WORKSPACE/.release/body.md"
+
+      - name: Install Nix
+        if: steps.pick.outputs.release == 'true'
+        uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+
+      - name: Enable Magic Nix Cache
+        if: steps.pick.outputs.release == 'true'
+        uses: DeterminateSystems/magic-nix-cache-action@84c0677f58dcedf3b91f8223ce36a9ea5b3c84b7 # v15
+
+      - name: Enable FlakeHub Cache
+        if: steps.pick.outputs.release == 'true'
+        uses: DeterminateSystems/flakehub-cache-action@0975873945367f5239ebb5f49c133bf3543a08f6 # v3
+
+      - name: Pin the new hasala commit
+        if: steps.pick.outputs.release == 'true'
+        run: |
+          sed -i "s|github:salehtl/hasala/[0-9a-f]\{40\}|github:salehtl/hasala/${{ steps.pick.outputs.rev }}|" flake.nix
+          nix flake update hasala
+          nix flake lock --no-update-lock-file
+
+      # The gate, as in update-flake-lock: if either fails, no PR is opened.
+      - name: nix flake check
+        if: steps.pick.outputs.release == 'true'
+        run: nix flake check --print-build-logs
+
+      - name: kakapo builds with the new hasala
+        if: steps.pick.outputs.release == 'true'
+        run: |
+          nix build --print-build-logs --no-link \
+            .#nixosConfigurations.kakapo.config.system.build.toplevel
+
+      - name: Hand the bumped files to the pull-request job
+        if: steps.pick.outputs.release == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release
+          include-hidden-files: true
+          path: |
+            flake.nix
+            flake.lock
+            .release/body.md
+
+  pull-request:
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      statuses: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: master
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release
+
+      # git and gh only: no third-party code holds this job's write token.
+      - name: Open or update the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REV: ${{ needs.plan.outputs.rev }}
+          REVIEW: ${{ needs.plan.outputs.review }}
+        run: |
+          set -euo pipefail
+          short=${REV:0:7}
+          title="hasala: release $short to QA"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C hasala-release
+          git commit -m "$title" -- flake.nix flake.lock
+          git push --force origin hasala-release
+
+          # GitHub never runs `check` and `build` on a push made with
+          # GITHUB_TOKEN. The plan job ran both on exactly this tree (master
+          # plus the two files it validated); report that so the PR can merge.
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          sha=$(git rev-parse HEAD)
+          for ctx in check build; do
+            gh api --silent "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+              -f state=success -f context="$ctx" -f target_url="$run_url" \
+              -f description="validated by hasala-release (flake check + kakapo build)"
+          done
+
+          if [ "$(gh pr list --head hasala-release --state open --json number --jq length)" = 0 ]; then
+            gh pr create --base master --head hasala-release --title "$title" --body-file .release/body.md
+          else
+            gh pr edit hasala-release --title "$title" --body-file .release/body.md
+          fi
+          if [ "$REVIEW" = true ]; then
+            gh pr edit hasala-release --add-label needs-review || true
+            gh pr merge hasala-release --disable-auto || true
+          else
+            gh pr edit hasala-release --remove-label needs-review || true
+            gh pr merge hasala-release --auto --squash
+          fi

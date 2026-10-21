@@ -6,17 +6,17 @@
         "nixpkgs-unstable": "nixpkgs-unstable"
       },
       "locked": {
-        "lastModified": 1792506738,
-        "narHash": "sha256-WggCMt880nKkJHATMF39uIMk0OJPu5ewLvKtpihwhbk=",
+        "lastModified": 1792562917,
+        "narHash": "sha256-RXoJKxzv9yMxzqxe13Q930kL2bGlLevA0P+FidWzHA8=",
         "owner": "salehtl",
         "repo": "hasala",
-        "rev": "55e6c79f8c1e54734d954b4b455cfe3866137a45",
+        "rev": "170ebcd91f5275420b223d2749f8962af3d0c90e",
         "type": "github"
       },
       "original": {
         "owner": "salehtl",
         "repo": "hasala",
-        "rev": "55e6c79f8c1e54734d954b4b455cfe3866137a45",
+        "rev": "170ebcd91f5275420b223d2749f8962af3d0c90e",
         "type": "github"
       }
     },

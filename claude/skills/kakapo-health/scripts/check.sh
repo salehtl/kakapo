@@ -16,7 +16,7 @@
 #   - set SuccessExitStatus = "1 2" and read the WARN/FAIL lines itself, or
 #     notify-failure@ fires a duplicate alert and failed_units flags the unit;
 #   - run --offline (plus at most a daily online run), so it never polls GitHub;
-#   - put on `path`: dnsutils curl smartmontools util-linux iproute2 gawk
+#   - put on `path`: bind.host diffutils curl smartmontools util-linux iproute2 gawk
 #     gnused gnugrep coreutils findutils systemd, networking.firewall.package,
 #     services.tailscale.package, nix.package (and gh for online runs).
 #

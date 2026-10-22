@@ -2,6 +2,10 @@
 let
   host = config.networking.hostName;
   normalUsers = lib.filter (u: u.isNormalUser) (lib.attrValues config.users.users);
+  # Host-management skills (claude/skills/<name>/SKILL.md), one directory each.
+  skills = lib.attrNames (
+    lib.filterAttrs (_: t: t == "directory") (builtins.readDir ../claude/skills)
+  );
 in
 {
   # Managed-policy CLAUDE.md: loaded by every Claude Code / agent session on this
@@ -158,8 +162,20 @@ in
   # library set, -stub-ld). The host's own claude-code (from pkgs.unstable) is unaffected.
   programs.nix-ld.enable = true;
 
-  systemd.tmpfiles.rules = lib.concatMap (u: [
-    "d ${u.home}/src 0755 ${u.name} ${u.group} -"
-    "L+ ${u.home}/src/CLAUDE.md - - - - /etc/claude-code/projects.md"
-  ]) normalUsers;
+  # Host-management skills (health, security, change, deploy, update,
+  # incident). They ship from the flake like everything else, so they change
+  # only by PR; editing the installed copies does nothing. Each is linked into
+  # ~/.claude/skills, where Claude Code discovers user skills; skills a user
+  # adds there by hand under other names are left alone.
+  environment.etc."claude-code/skills".source = ../claude/skills;
+
+  systemd.tmpfiles.rules = lib.concatMap (
+    u:
+    [
+      "d ${u.home}/src 0755 ${u.name} ${u.group} -"
+      "L+ ${u.home}/src/CLAUDE.md - - - - /etc/claude-code/projects.md"
+      "d ${u.home}/.claude/skills 0755 ${u.name} ${u.group} -"
+    ]
+    ++ map (s: "L+ ${u.home}/.claude/skills/${s} - - - - /etc/claude-code/skills/${s}") skills
+  ) normalUsers;
 }

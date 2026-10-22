@@ -124,4 +124,88 @@ in
       Persistent = true;
     };
   };
+
+  # Push to ntfy when kakapo's health changes. Runs the kakapo-health skill's
+  # own check (claude/skills/kakapo-health/scripts/check.sh), so what Claude
+  # reports on request and what the phone is told are the same checks. It
+  # runs --offline: GitHub is not polled every quarter hour, so the master,
+  # PR and master-CI checks stay with the skill.
+  #
+  # The `generation` check is left out of alerts: it WARNs whenever a
+  # guarded-test activation is live, which is routine while a PR is tested.
+  #
+  # It pushes only when the set of WARN/FAIL lines changes, and once more when
+  # everything is back to OK, so a lasting problem alerts once, not every run.
+  # The unit itself succeeds on WARN/FAIL (exit 1/2), or notify-failure@ would
+  # send a second alert and failed_units would flag this unit; it fails, and
+  # mails, only when the check cannot run at all.
+  systemd.services.health-check = {
+    description = "Push kakapo health changes to ntfy";
+    onFailure = [ "notify-failure@%n.service" ];
+    path = [
+      pkgs.bash
+      pkgs.coreutils
+      pkgs.curl
+      pkgs.bind.host
+      pkgs.diffutils
+      pkgs.findutils
+      pkgs.gawk
+      pkgs.gnugrep
+      pkgs.gnused
+      pkgs.iproute2
+      pkgs.nvme-cli
+      pkgs.smartmontools
+      pkgs.util-linux
+      config.networking.firewall.package
+      config.nix.package
+      config.services.tailscale.package
+      config.systemd.package
+    ];
+    serviceConfig = {
+      Type = "oneshot";
+      StateDirectory = "health-check";
+      TimeoutStartSec = "5min";
+    };
+    script = ''
+      set -u
+      state=/var/lib/health-check/problems
+      rc=0
+      out=$(bash ${../claude/skills/kakapo-health/scripts/check.sh} --offline) || rc=$?
+      printf '%s\n' "$out"
+      if [ "$rc" -gt 2 ]; then
+        echo "check.sh exited $rc" >&2
+        exit 1
+      fi
+      now=$(printf '%s\n' "$out" | grep -E '^(WARN|FAIL)'$'\t' | grep -v $'\tgeneration\t' || true)
+      before=$(cat "$state" 2>/dev/null || true)
+      [ "$now" = "$before" ] && exit 0
+      printf '%s' "$now" >"$state"
+
+      if [ -z "$now" ]; then
+        title="[${config.networking.hostName}] health: all OK"
+        prio=default tags=white_check_mark body="All checks are OK again."
+      elif printf '%s\n' "$now" | grep -q '^FAIL'; then
+        title="[${config.networking.hostName}] health: FAIL"
+        prio=high tags=rotating_light body=$now
+      else
+        title="[${config.networking.hostName}] health: WARN"
+        prio=default tags=warning body=$now
+      fi
+      curl -fsS --max-time 10 -o /dev/null \
+        -H "Title: $title" -H "Priority: $prio" -H "Tags: $tags" \
+        --data-binary "$(printf '%s\n' "$body" | tr '\t' ' ')" \
+        http://127.0.0.1:2586/kakapo || {
+        # Not delivered: forget the state so the next run tries again.
+        rm -f "$state"
+        echo "ntfy push failed" >&2
+      }
+    '';
+  };
+  systemd.timers.health-check = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "10min";
+      OnUnitActiveSec = "15min";
+    };
+  };
 }

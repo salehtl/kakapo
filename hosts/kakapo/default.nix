@@ -11,6 +11,7 @@
     ../../modules/ca-trust.nix
     ../../modules/server.nix
     ../../modules/claude.nix
+    ../../modules/backup.nix
     ../../modules/notify.nix
     ../../modules/sops.nix
     ../../modules/nodejs.nix

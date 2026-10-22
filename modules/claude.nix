@@ -163,7 +163,7 @@ in
   programs.nix-ld.enable = true;
 
   # Host-management skills (health, security, change, deploy, update,
-  # incident). They ship from the flake like everything else, so they change
+  # incident, hasala-release). They ship from the flake like everything else, so they change
   # only by PR; editing the installed copies does nothing. Each is linked into
   # ~/.claude/skills, where Claude Code discovers user skills; skills a user
   # adds there by hand under other names are left alone.

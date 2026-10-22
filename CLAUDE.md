@@ -175,7 +175,7 @@ nix flake lock                               # moves hasala (and its own nixpkgs
 nix flake check
 ```
 
-Open a PR as usual. Migrations are expand-only within a release, so a rollback is a revert of that PR; `hasala-backup-premigrate` dumps first whenever a migration has work to do. Check the running build with `sudo hasala-admin version` and `curl -s http://127.0.0.1:8471/api/v1/healthz`.
+The `hasala-release` skill (`claude/skills/hasala-release/`) does this end to end: it picks the commit, reads its migrations and module changes, tests it, and after Saleh's merge word deploys it at once instead of at 04:00. Open a PR as usual. Migrations are expand-only within a release, so a rollback is a revert of that PR; `hasala-backup-premigrate` dumps first whenever a migration has work to do. Check the running build with `sudo hasala-admin version` and `curl -s http://127.0.0.1:8471/api/v1/healthz`.
 
 ### Edit secrets
 

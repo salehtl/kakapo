@@ -36,6 +36,14 @@ jobs:
       - name: Enable FlakeHub Cache
         uses: DeterminateSystems/flakehub-cache-action@0975873945367f5239ebb5f49c133bf3543a08f6 # v3
 
+      # The system master builds today, for the closure review below. master's
+      # own CI already built it, so this is mostly cache hits.
+      - name: Build master as the review baseline
+        run: |
+          cp flake.lock "$RUNNER_TEMP/base.lock"
+          nix build --no-link --print-out-paths \
+            .#nixosConfigurations.kakapo.config.system.build.toplevel > "$RUNNER_TEMP/old-system"
+
       - name: nix flake update
         run: nix flake update
 
@@ -59,8 +67,25 @@ jobs:
 
       - name: kakapo builds on the new lock
         run: |
-          nix build --print-build-logs --no-link \
-            .#nixosConfigurations.kakapo.config.system.build.toplevel
+          nix build --print-build-logs --no-link --print-out-paths \
+            .#nixosConfigurations.kakapo.config.system.build.toplevel > "$RUNNER_TEMP/new-system"
+
+      # What moved, sorted by the kakapo-update skill's scripts, with flags for
+      # Immich/PostgreSQL, kernel and input-source changes. Posted on the PR
+      # below. It does not gate: the two steps above do.
+      - name: Closure review for the pull request
+        run: |
+          mkdir -p "$RUNNER_TEMP/review"
+          scripts/lock-review.sh "$RUNNER_TEMP/base.lock" flake.lock \
+            "$(cat "$RUNNER_TEMP/old-system")" "$(cat "$RUNNER_TEMP/new-system")" \
+            > "$RUNNER_TEMP/review/review.md"
+          cat "$RUNNER_TEMP/review/review.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Hand the review to the pull-request job
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: review
+          path: ${{ runner.temp }}/review/review.md
 
       - name: Hand the bumped files to the pull-request job
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -84,6 +109,12 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: bump
+
+      # Outside the checkout, so it is never committed with the bump.
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: review
+          path: ${{ runner.temp }}/review
 
       # git and gh only: no third-party code holds this job's write token.
       - name: Open or update the pull request
@@ -132,3 +163,5 @@ jobs:
           BODY
             gh pr edit flake-lock-bump --add-label dependencies || true
           fi
+          # A new comment per run: each one reviews that week's push.
+          gh pr comment flake-lock-bump --body-file "$RUNNER_TEMP/review/review.md"

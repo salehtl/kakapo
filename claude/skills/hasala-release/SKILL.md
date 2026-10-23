@@ -159,9 +159,9 @@ Saleh the PR link and the result, and stop until he says to merge.
 On Saleh's word: follow kakapo-deploy steps 1 to 6 for this PR (`pr-gate.sh`,
 `gh pr merge --squash --match-head-commit`, build `github:salehtl/kakapo/<sha>`,
 guarded-test with the pre-merge guard copy, health, boot default, master CI).
-After its step 5 health check, run `verify.sh "$out"` again. After an
-auto-merged PR, start at kakapo-deploy step 1 "Before merging" for the host
-checks, skip the merge, and continue at step 4.
+Its `scripts/deploy.sh <squash sha>` does steps 4 to 6 in one run and calls
+`verify.sh` itself when `hasalad` changed. After an auto-merged PR, wait until
+`master` pins the target, skip the merge, and run `deploy.sh` on that commit.
 
 If the next 04:00 run is less than 30 minutes away, do not merge or deploy; say
 the time left.

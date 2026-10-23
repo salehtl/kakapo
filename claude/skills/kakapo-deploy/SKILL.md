@@ -161,6 +161,33 @@ that broke it.
 
 ## 4. Deploy master to the host
 
+**Use the bundled script.** It runs steps 4 to 6 below in one go, as one
+background command, and stops at the first failure:
+
+```sh
+<this skill's directory>/scripts/deploy.sh <squash sha>   # --base <sha> after several merges
+```
+
+It checks `<sha>` is on `master`, the upgrade is idle and 04:00 is more than
+30 minutes away; fetches `guarded-test.sh` from the pre-merge commit (`<sha>^`,
+or `--base` = `master` before your first merge); builds; guarded-tests; checks
+health (and hasala `verify.sh` when `hasalad` changed); sets the boot default
+only if all of that passed; then watches `master` CI.
+
+| Exit | Meaning | Do |
+|---|---|---|
+| 0 | deployed, boot default set, `master` CI green | report (step 8) |
+| 1 | a precondition failed; nothing activated | fix the cause or tell Saleh |
+| 2 | build failed | find the PR that broke it (step 3) |
+| 3 | `guarded-test.sh` failed; it rolled back itself | step 7 |
+| 4 | health failed; the new system runs but is **not** the boot default | step 7 |
+| 5 | another activation replaced it, or the guard lock was busy | re-run later |
+| 6 | deployed, but `master` CI is red | step 7 (revert PR), now |
+
+Use `--near-upgrade` only when Saleh said to deploy within 30 minutes of 04:00.
+The steps below are what the script does; follow them by hand only if it
+cannot run.
+
 Build the exact commit you merged, not a moving `master`, so another merge in the
 meantime cannot slip in untested:
 

@@ -30,6 +30,14 @@ in
       key = "notify/smtp_password";
     };
 
+    # healthchecks.io ping URL of the `kakapo` check (modules/notify.nix,
+    # health-check). Anyone who has it can ping the check green or red, so it
+    # is a secret. Read at each run, so nothing needs restarting.
+    secrets."healthchecks/ping_url" = {
+      sopsFile = ../secrets/healthchecks.yaml;
+      key = "healthchecks/ping_url";
+    };
+
     # Gramps Web's outgoing mail (modules/services/grampsweb.nix): its own iCloud
     # app-specific password, as GRAMPSWEB_EMAIL_HOST_PASSWORD=... for the
     # containers' environment file. Separate from notify's, so either can be

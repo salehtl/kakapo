@@ -1,6 +1,28 @@
 { config, pkgs, ... }:
 let
   to = "salehtl@icloud.com";
+  checkScript = ../claude/skills/kakapo-health/scripts/check.sh;
+  # What check.sh needs on PATH (its header lists the same).
+  checkPath = [
+    pkgs.bash
+    pkgs.procps # before coreutils: its uptime has -s
+    pkgs.coreutils
+    pkgs.curl
+    pkgs.bind.host
+    pkgs.diffutils
+    pkgs.findutils
+    pkgs.gawk
+    pkgs.gnugrep
+    pkgs.gnused
+    pkgs.iproute2
+    pkgs.nvme-cli
+    pkgs.smartmontools
+    pkgs.util-linux
+    config.networking.firewall.package
+    config.nix.package
+    config.services.tailscale.package
+    config.systemd.package
+  ];
 in
 {
   # Email when the 04:00 autoUpgrade fails. Nothing else watches it: a lock
@@ -149,25 +171,7 @@ in
   systemd.services.health-check = {
     description = "Push kakapo health changes to ntfy";
     onFailure = [ "notify-failure@%n.service" ];
-    path = [
-      pkgs.bash
-      pkgs.coreutils
-      pkgs.curl
-      pkgs.bind.host
-      pkgs.diffutils
-      pkgs.findutils
-      pkgs.gawk
-      pkgs.gnugrep
-      pkgs.gnused
-      pkgs.iproute2
-      pkgs.nvme-cli
-      pkgs.smartmontools
-      pkgs.util-linux
-      config.networking.firewall.package
-      config.nix.package
-      config.services.tailscale.package
-      config.systemd.package
-    ];
+    path = checkPath;
     serviceConfig = {
       Type = "oneshot";
       StateDirectory = "health-check";
@@ -183,7 +187,7 @@ in
           "$(cat "$CREDENTIALS_DIRECTORY/hc_ping_url")$1" || echo "healthchecks.io ping failed" >&2
       }
       rc=0
-      out=$(bash ${../claude/skills/kakapo-health/scripts/check.sh} --offline) || rc=$?
+      out=$(bash ${checkScript} --offline) || rc=$?
       printf '%s\n' "$out"
       if [ "$rc" -gt 2 ]; then
         echo "check.sh exited $rc" >&2
@@ -222,6 +226,64 @@ in
     timerConfig = {
       OnBootSec = "10min";
       OnUnitActiveSec = "15min";
+    };
+  };
+
+  # Daily health report to ntfy at 09:00, whatever the state: one push with
+  # the verdict, the facts worth a glance (upgrade, backups, disk, TLS), open
+  # PRs and master CI. health-check above alerts on changes; this is the
+  # "still fine" signal. It runs check.sh online, so the generation check also
+  # compares with master. root has no gh login, so PRs and CI come from the
+  # public GitHub API; a PR from a fork shows by number only (untrusted text).
+  systemd.services.health-report = {
+    description = "Daily kakapo health report to ntfy";
+    onFailure = [ "notify-failure@%n.service" ];
+    path = checkPath ++ [ pkgs.jq ];
+    serviceConfig = {
+      Type = "oneshot";
+      TimeoutStartSec = "10min";
+    };
+    script = ''
+      set -u
+      api=https://api.github.com/repos/salehtl/kakapo
+      rc=0
+      out=$(bash ${checkScript}) || rc=$?
+      printf '%s\n' "$out"
+      if [ "$rc" -gt 2 ]; then
+        echo "check.sh exited $rc" >&2
+        exit 1
+      fi
+      summary=$(printf '%s\n' "$out" | awk -F'\t' '$1 == "SUMMARY" { print $2 " (" $3 ")" }')
+      problems=$(printf '%s\n' "$out" | grep -E '^(WARN|FAIL)'$'\t' | cut -f2- | tr '\t' ' ' || true)
+      facts=$(printf '%s\n' "$out" | awk -F'\t' '$2 ~ /^(upgrade|backups|disk|tls|nixpkgs_age)$/ { print $2 ": " $3 }')
+      prs=$(curl -fsS --max-time 15 "$api/pulls?state=open&per_page=30" | jq -r '.[] |
+        if .head.repo.owner.login != "salehtl" then "#\(.number) [external]"
+        else "#\(.number) \(.title)" end') || prs="(GitHub API failed)"
+      ci=$(curl -fsS --max-time 15 "$api/actions/workflows/check.yml/runs?branch=master&event=push&per_page=1" |
+        jq -r '.workflow_runs[0] | "\(.status)/\(.conclusion) \(.head_sha[:7])"') || ci="(GitHub API failed)"
+
+      case "$rc" in
+        0) prio=low tags=white_check_mark ;;
+        1) prio=default tags=warning ;;
+        *) prio=high tags=rotating_light ;;
+      esac
+      body=$(
+        [ -n "$problems" ] && printf 'Needs attention:\n%s\n\n' "$problems"
+        printf '%s\n\n' "$facts"
+        printf 'master CI: %s\n' "$ci"
+        printf 'Open PRs: %s\n' "''${prs:-none}"
+      )
+      curl -fsS --max-time 10 -o /dev/null \
+        -H "Title: [${config.networking.hostName}] daily: $summary" -H "Priority: $prio" -H "Tags: $tags" \
+        --data-binary "$body" \
+        http://127.0.0.1:2586/kakapo
+    '';
+  };
+  systemd.timers.health-report = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "09:00";
+      Persistent = true;
     };
   };
 }

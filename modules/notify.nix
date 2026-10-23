@@ -134,6 +134,13 @@ in
   # The `generation` check is left out of alerts: it WARNs whenever a
   # guarded-test activation is live, which is routine while a PR is tested.
   #
+  # Every run also pings healthchecks.io, the one alert path that does not
+  # depend on kakapo: ntfy and the mail above both run here, so a dead host,
+  # disk or uplink sends nothing. healthchecks.io alerts when the pings stop
+  # (set the check's period to 15 min and its grace to 30 min), and on a /fail
+  # ping, which a FAIL or a check that cannot run sends, so the worst states
+  # also reach Saleh by a second path when ntfy itself is down.
+  #
   # It pushes only when the set of WARN/FAIL lines changes, and once more when
   # everything is back to OK, so a lasting problem alerts once, not every run.
   # The unit itself succeeds on WARN/FAIL (exit 1/2), or notify-failure@ would
@@ -165,17 +172,26 @@ in
       Type = "oneshot";
       StateDirectory = "health-check";
       TimeoutStartSec = "5min";
+      LoadCredential = "hc_ping_url:${config.sops.secrets."healthchecks/ping_url".path}";
     };
     script = ''
       set -u
       state=/var/lib/health-check/problems
+      # hc_ping [/fail] BODY: heartbeat to healthchecks.io; never fails the run.
+      hc_ping() {
+        curl -fsS --max-time 10 --retry 3 -o /dev/null --data-binary "$2" \
+          "$(cat "$CREDENTIALS_DIRECTORY/hc_ping_url")$1" || echo "healthchecks.io ping failed" >&2
+      }
       rc=0
       out=$(bash ${../claude/skills/kakapo-health/scripts/check.sh} --offline) || rc=$?
       printf '%s\n' "$out"
       if [ "$rc" -gt 2 ]; then
         echo "check.sh exited $rc" >&2
+        hc_ping /fail "check.sh exited $rc"
         exit 1
       fi
+      summary=$(printf '%s\n' "$out" | grep -Ev '^(OK|SKIP)'$'\t' | tr '\t' ' ')
+      if [ "$rc" -eq 2 ]; then hc_ping /fail "$summary"; else hc_ping "" "$summary"; fi
       now=$(printf '%s\n' "$out" | grep -E '^(WARN|FAIL)'$'\t' | grep -v $'\tgeneration\t' || true)
       before=$(cat "$state" 2>/dev/null || true)
       [ "$now" = "$before" ] && exit 0

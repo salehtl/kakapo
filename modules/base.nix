@@ -52,20 +52,26 @@
     settings = {
       PermitRootLogin = "no";
       PasswordAuthentication = false;
+      # Nothing here needs unix-socket forwarding (ssh -L/-R to a socket path);
+      # it is the class of forwarding the Tailworm report abuses.
+      AllowStreamLocalForwarding = "no";
     };
   };
 
   services.tailscale = {
     enable = true;
-    # Tailscale SSH serves port 22 on the tailnet interface. Authentication is
-    # tailnet identity plus the tailnet SSH policy, not authorized_keys.
-    #
-    # sshd above stays enabled on purpose. It still serves the LAN, which is the
-    # recovery path when Tailscale or its control plane is unavailable, and
-    # humaid's node (anoa) is not a principal in the tailnet SSH policy, so
-    # Tailscale SSH alone would lock him out.
+    # Tailscale SSH is off: sshd above answers port 22 on the tailnet too,
+    # with the YubiKey sk- keys and no root login. Tailscale SSH authenticates
+    # the device, not the user, and runs as root; the Tailworm report
+    # (tailworm.com, 2026-10) shows its unix-socket forwarding (ssh -L/-R) can
+    # dial and replace root-only sockets, and a session can grow root
+    # tailscaled's memory without bound. The tailnet SSH policy also let the
+    # phone in as root with every forwarding allowed, and homeassistant and
+    # kakapo itself in as root after a check. `tailscale set` keeps a flag it
+    # is not given, so turning it off must be explicit. See the assertion in
+    # hosts/kakapo/default.nix.
     extraSetFlags = [
-      "--ssh"
+      "--ssh=false"
       # Always explicit: `tailscale set` only changes the flags it is given,
       # so a generation without the flag kept an earlier exit node advertised
       # (and approved) with nothing declaring it. The exit node exists for
@@ -80,6 +86,12 @@
       "--accept-dns=false"
     ];
   };
+
+  # tailscaled runs as root and normally uses under 100M. Cap it so a peer or
+  # a DERP relay that makes it grow without bound (Tailworm findings 5 and 6)
+  # gets it OOM-killed and restarted (Restart=on-failure) instead of taking
+  # the host's memory. DNS and the proxy on the LAN do not depend on it.
+  systemd.services.tailscaled.serviceConfig.MemoryMax = "1G";
 
   # Leftovers of modules/services/zapret.nix after it is removed: a firewall
   # reload runs only the new generation's commands, so the mangle jump into

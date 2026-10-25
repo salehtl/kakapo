@@ -156,7 +156,8 @@ sudo iptables -w -S FORWARD; sudo iptables -w -S ts-forward; sudo iptables -w -S
 
 Expect `AdvertiseRoutes` to be exactly `10.0.0.215/32` (`lan-proxy.nix`)
 plus `0.0.0.0/0` and `::/0` only while `zapret.enable` is `true`
-(`--advertise-exit-node` in `modules/base.nix`), and `RunSSH` true. Any other
+(`--advertise-exit-node` in `modules/base.nix`), and `RunSSH` false
+(Tailscale SSH is off on purpose; `RunSSH` true is **High**). Any other
 route (for example `10.0.0.0/24`) is **Critical**: the tailnet policy is
 allow-all, so it opens the house LAN to every tailnet node. An exit node
 while `zapret.enable` is `false`, or forwarding on with no exit node, is
@@ -244,9 +245,11 @@ ls /etc/ssh/authorized_keys.d/        # one file per declared user only
 Compare the keys in `/etc/ssh/authorized_keys.d/<user>` with
 `users.users.<user>.openssh.authorizedKeys.keys` in `hosts/kakapo/default.nix`.
 
-Port 22 on the tailnet is answered by **Tailscale SSH** (`--ssh` in
-`modules/base.nix`), not sshd: tailnet identity plus the tailnet SSH policy,
-not `authorized_keys`. Review both logs for the audit window (default 7 days).
+Port 22 on the tailnet is answered by **sshd**, as on the LAN: Tailscale SSH
+is off (`--ssh=false` in `modules/base.nix`, guarded by an assertion), because
+it authenticates the device, not the user, and runs socket forwarding as root
+(tailworm.com, 2026-10). Any `audit: SSH login` line in the tailscaled log
+after 2026-10-26 means it came back. Review both logs for the audit window (default 7 days).
 The `sed`/`awk` cut the lines to fixed fields, so remote-chosen text (a user
 name) is not shown whole:
 

@@ -135,5 +135,13 @@
       assertion = config.networking.firewall.enable;
       message = "networking.firewall.enable must be true — kakapo exposes port 22 and serves apps over the tailnet only; disabling the firewall would silently expose every other listening service.";
     }
+    {
+      assertion =
+        let
+          f = config.services.tailscale.extraSetFlags;
+        in
+        builtins.elem "--ssh=false" f && !(builtins.elem "--ssh" f) && !(builtins.elem "--ssh=true" f);
+      message = "Tailscale SSH must stay off (services.tailscale.extraSetFlags needs \"--ssh=false\") — it authenticates the device, not the user, runs socket forwarding as root (tailworm.com, 2026-10), and the tailnet SSH policy admits root. sshd serves port 22 on the tailnet with the YubiKey keys instead.";
+    }
   ];
 }

@@ -66,8 +66,7 @@
 #          Recommended, out-of-band and Saleh's to do: tag kakapo and
 #          homeassistant in the Tailscale admin (tag:server). nginx-auth then
 #          refuses them on every gated name, and control 3 is removed. See
-#          CLAUDE.md first: a tagged kakapo leaves autogroup:self, which
-#          Tailscale SSH rules may use.
+#          CLAUDE.md first: a tagged kakapo leaves autogroup:self.
 #          KNOWN RESIDUAL RISK: these controls close the PROXY to local
 #          processes, not the apps behind it. Only the console's own port is
 #          closed to them, by the hasala module's `hasala-console-out` (only
@@ -562,7 +561,7 @@ in
     };
   };
 
-  # Appended to base.nix's [ "--ssh" ]; tailscaled-set applies the list with
+  # Appended to base.nix's flags; tailscaled-set applies the list with
   # `tailscale set` on every start, so this is the whole route config.
   services.tailscale.extraSetFlags = [ "--advertise-routes=${lanAddress}/32" ];
 

@@ -83,11 +83,11 @@ incident (SKILL.md rule 8), not an outage.
   Saleh) and NetworkManager/DHCP logs. `lanAddress` in `lan-proxy.nix` must
   match the reservation.
 - **Tailscale:** `tailscaled-set` is a oneshot, so `inactive (success)` is
-  its healthy state. It applies the declared flags (`--ssh`,
+  its healthy state. It applies the declared flags (`--ssh=false`,
   `--advertise-exit-node`, `--accept-dns=false`); never run `tailscale set`
   or `tailscale up` by hand. If the subnet route or exit node disappears from
   `PrimaryRoutes`, approval in the admin console is out-of-band (Saleh). Node
-  key expiry stops every Tailscale route and Tailscale SSH; read kakapo's own
+  key expiry stops every Tailscale route (tailnet SSH to sshd too); read kakapo's own
   date with `tailscale status --json | sed -n '/"Self"/,/^  }/p' | grep KeyExpiry`
   (no line: expiry is disabled; on 2026-10-22 it was). A plain
   `grep -m1 KeyExpiry` returns a peer's date.

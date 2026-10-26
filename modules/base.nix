@@ -60,6 +60,10 @@
 
   services.tailscale = {
     enable = true;
+    # 26.05 stays on 1.98.x; unstable tracks upstream releases, which carry
+    # the security fixes for tailscaled (root, on every interface's traffic).
+    # The flake.lock bump moves it with nixpkgs-unstable.
+    package = pkgs.unstable.tailscale;
     # Tailscale SSH is off: sshd above answers port 22 on the tailnet too,
     # with the YubiKey sk- keys and no root login. Tailscale SSH authenticates
     # the device, not the user, and runs as root; the Tailworm report

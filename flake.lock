@@ -104,12 +104,34 @@
         "type": "github"
       }
     },
+    "nook": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1793013775,
+        "narHash": "sha256-g73W3WYGy1uKMJC+Pz4phE+NyENpxquTcKpkedJ11xs=",
+        "owner": "salehtl",
+        "repo": "nook",
+        "rev": "fb6e126428873e6668318c9817f2d16f140bfdc0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "salehtl",
+        "repo": "nook",
+        "rev": "fb6e126428873e6668318c9817f2d16f140bfdc0",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "hasala": "hasala",
         "ledger": "ledger",
         "nixpkgs": "nixpkgs_2",
         "nixpkgs-unstable": "nixpkgs-unstable_2",
+        "nook": "nook",
         "sops-nix": "sops-nix",
         "treefmt-nix": "treefmt-nix"
       }

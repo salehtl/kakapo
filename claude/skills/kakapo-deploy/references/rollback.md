@@ -36,7 +36,7 @@ apply. Use `$prev_boot`, never `$prev_run`: that can be an unmerged branch, and
 it is not GC-rooted once it stops running.
 
 ```sh
-<scratch>/guarded-test.sh "$prev_boot"
+<scratch>/guarded-test.sh "$prev_boot" --replace   # the live system is your bad deploy
 ```
 
 **If it exits 2**, DNS or the firewall is already down and the guard refuses to

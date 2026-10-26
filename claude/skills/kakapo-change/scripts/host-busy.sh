@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Read-only check: is it safe to start a guarded test activation on kakapo now?
 # Prints one line per check and exits 0 when the host looks idle, 1 when
-# something else is activating. A live test activation is only a NOTE.
+# something else is activating. A live test activation is a NOTE: find whose
+# it is; guarded-test.sh refuses to replace it without --replace.
 # It changes nothing; scripts/guarded-test.sh still takes the real lock.
 set -u
 busy=0
@@ -48,7 +49,7 @@ fi
 cur=$(readlink -f /run/current-system)
 boot=$(readlink -f /nix/var/nix/profiles/system)
 if [ "$cur" != "$boot" ]; then
-  echo "NOTE  running system differs from the boot default: a test activation (maybe another agent's branch) is live"
+  echo "NOTE  running system differs from the boot default: a test activation (maybe another agent's branch) is live; guarded-test.sh needs --replace to replace it"
   echo "        current: $cur"
   echo "        default: $boot"
 else

@@ -8,8 +8,20 @@
 #
 #   out=$(nix build --no-link --print-out-paths .#nixosConfigurations.kakapo.config.system.build.toplevel)
 #   scripts/guarded-test.sh "$out"
+#   scripts/guarded-test.sh "$out" --replace   # see "Another agent's test" below
+#
+# Exit codes: 0 pass; 1 DNS/LAN path/firewall went down, rolled back; 2
+# already failing, nothing activated; 3 something else replaced the system
+# mid-check; 4 firewall/reload/new failed unit, rolled back; 5 gave up on the
+# lock; 6 another test activation is live, nothing activated.
 set -u
-new=$(readlink -f "${1:?usage: guarded-test.sh <system store path>}")
+new=$(readlink -f "${1:?usage: guarded-test.sh <system store path> [--replace]}")
+replace=0
+case ${2:-} in
+--replace) replace=1 ;;
+'') ;;
+*) echo "usage: guarded-test.sh <system store path> [--replace]" >&2; exit 64 ;;
+esac
 
 # One activation at a time. Several agents can work on kakapo at once, each
 # testing its own branch on the one live host; without this, a second test
@@ -23,6 +35,27 @@ exec 9<"$lock"
 if ! flock -n 9; then
   echo "another guarded-test.sh is running; waiting for it (up to 15 min)" >&2
   flock -w 900 9 || { echo "gave up waiting for the guarded-test lock" >&2; exit 5; }
+fi
+
+# Another agent's test. The lock only serializes runs; a test that finished
+# stays live until the next activation, and replacing it silently undoes
+# that agent's work (2026-10-26: a docs PR's test stopped nook-scan and
+# nook-web, and the GC then deleted the nook system). When the running
+# system is not the boot default, some test is live: refuse unless the
+# caller checked whose it is (its own, or Saleh agreed) and passed --replace.
+# Re-activating the running system itself is always fine.
+cur=$(readlink -f /run/current-system)
+boot=$(readlink -f /nix/var/nix/profiles/system)
+if [ "$cur" != "$boot" ] && [ "$new" != "$cur" ] && [ "$replace" = 0 ]; then
+  {
+    echo "a test activation is live: $cur"
+    echo "  (boot default: $boot)"
+    gone=$(comm -23 <(find "$cur/etc/systemd/system/" -maxdepth 1 -printf "%f\n" | sort) <(find "$new/etc/systemd/system/" -maxdepth 1 -printf "%f\n" | sort) | xargs)
+    [ -z "$gone" ] || echo "  units it has that $new would remove: $gone"
+    echo "Find whose test it is (gh pr list, the closure diff). If it is yours, or"
+    echo "Saleh agrees to replace it, re-run with --replace. Nothing was activated."
+  } >&2
+  exit 6
 fi
 
 prev=$(readlink /run/current-system)

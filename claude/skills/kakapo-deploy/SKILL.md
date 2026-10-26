@@ -78,8 +78,10 @@ chmod +x <scratch>/guarded-test.sh                           # the guard you wil
   DNS watch and make it the boot default. Merge after the upgrade finishes, or when
   he says to merge anyway.
 - `$prev_boot` is the last deployed `master` (a profile generation, so GC-rooted).
-  Roll back to it, never to `$prev_run`. If `$prev_run` differs, another agent's
-  unmerged test is live; the deploy replaces it. Say so in the report.
+  Roll back to it, never to `$prev_run`. If `$prev_run` differs, a test is live.
+  If it is your own, pass `--replace` to `deploy.sh`/`guarded-test.sh`. If it is
+  another agent's, stop and ask Saleh: replacing it silently undoes their work.
+  Say in the report what you replaced.
 - If DNS or the firewall is already failing, `guarded-test.sh` refuses to run
   (exit 2): use kakapo-incident first.
 
@@ -220,6 +222,7 @@ cannot weaken the guard that tests it:
 | 3 | something else replaced the system mid-check (often `nixos-upgrade`) | wait while `systemctl show -p ActiveState --value nixos-upgrade.service` is `activating`, then re-run |
 | 4 | firewall did not load, a reload failed, or units newly failed; rolled back | rollback (step 7) |
 | 5 | waited 15 min for another agent's guarded-test lock | try again later; tell Saleh if it persists |
+| 6 | another test activation is live; nothing activated | step 1: `--replace` only for your own test or on Saleh's word |
 
 ## 5. Verify health (DNS first)
 
@@ -239,8 +242,8 @@ done                                                           # all "success"
 ```
 
 If `readlink /run/current-system` is not `$out`, another agent activated after you.
-Do not report its health as yours. Re-run `<scratch>/guarded-test.sh "$out"` (it
-waits for the lock), then repeat this step.
+Do not report its health as yours, and do not replace it: tell Saleh, and deploy
+again (`--replace`) only on his word.
 
 The health-unit timestamps show the last timer run. If it predates your activation
 and the PR touched DNS or the proxy, wait for a run under the new generation. Then
@@ -290,7 +293,8 @@ Read `references/rollback.md` for the full procedure. In short:
 
 1. **Host first.** If `guarded-test.sh` already rolled back (exit 1 or 4), the
    running system is `$prev_run` and the boot default is untouched. Otherwise run
-   `<scratch>/guarded-test.sh "$prev_boot"`; if it exits 2 (DNS already down), use
+   `<scratch>/guarded-test.sh "$prev_boot" --replace` (the live system is your bad
+   deploy); if it exits 2 (DNS already down), use
    the direct locked activation in `references/rollback.md` A2. If you already set
    the boot default to `$out`, set it back:
    `sudo nix-env -p /nix/var/nix/profiles/system --set "$prev_boot"` and

@@ -176,6 +176,12 @@ let
     # and left to kakapo's own services on loopback (modules/services/ntfy.nix).
     # On the house network so alerts arrive while the phone's Tailscale is off.
     ntfy = 2586;
+    # nook: the reading-room planner and scan uploads from the nook-scan iPhone
+    # app (modules/services/nook.nix). No login, by Saleh's choice (2026-10-26):
+    # on the house network as well as the tailnet, so anyone on the home Wi-Fi
+    # can open the room scans (the inside of the house) and queue GPU jobs.
+    # Guest stays out. Move it to `tailnetOnly` to gate it again.
+    nook = config.services.nook.webPort;
   };
 
   # name -> another machine on the LAN. Its traffic leaves kakapo from
@@ -254,6 +260,15 @@ let
     # everyone else gets 403 from nginx. serverConfig puts untaggedDeny ahead
     # of these allows.
     hasala = lib.concatMapStrings (ip: "allow ${ip};\n") consoleAllow + "deny all;\n";
+    # A nook-scan capture (hundreds of MB, up to a few GB) arrives in one
+    # request from the iPhone app; stream it through to the jobs server.
+    nook = ''
+      client_max_body_size 4096M;
+      proxy_request_buffering off;
+      proxy_read_timeout 900s;
+      proxy_send_timeout 900s;
+      send_timeout 900s;
+    '';
     # Phone backups upload whole videos in one request; stream them straight
     # through instead of buffering to disk, and allow slow links.
     photos = ''

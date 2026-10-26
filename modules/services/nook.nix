@@ -1,7 +1,7 @@
 # nook: Saleh's reading-room planner, and the trainer for room scans from the
 # nook-scan iPhone app (github.com/salehtl/nook; the module is nix/module.nix
 # there, and this file is kakapo's instance of it). The app uploads a capture;
-# nook-scan trains it on the RTX 2060 (Brush over Vulkan) and writes the room
+# nook-scan trains it on the RTX 2060 (gsplat over CUDA) and writes the room
 # straight into the folder the planner serves, so a scan shows up with no
 # manual step.
 #

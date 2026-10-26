@@ -111,7 +111,6 @@
   environment.systemPackages = [
     pkgs.unstable.claude-code
     pkgs.unstable.herdr
-    pkgs.cf
     pkgs.gh
   ];
 

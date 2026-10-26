@@ -47,11 +47,6 @@ jobs:
       - name: nix flake update
         run: nix flake update
 
-      # The pin `nix flake update` cannot move: the cf CLI in pkgs/cf.
-      # Validated by the two steps below like everything else.
-      - name: Bump cf to its latest release
-        run: nix shell nixpkgs#nodejs nixpkgs#jq nixpkgs#curl -c scripts/update-pins.sh
-
       # GitHub will not run `check` on the pull request opened below: anything
       # done with the default GITHUB_TOKEN does not trigger further workflows.
       # Rather than store a PAT to work around that, the lock is validated here
@@ -91,9 +86,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: bump
-          path: |
-            flake.lock
-            pkgs/cf/
+          path: flake.lock
 
   pull-request:
     needs: lockfile
@@ -148,8 +141,7 @@ jobs:
           if [ "$(gh pr list --head flake-lock-bump --state open --json number --jq length)" = 0 ]; then
             gh pr create --base master --head flake-lock-bump \
               --title "flake: weekly flake.lock bump" --body-file - <<'BODY'
-          Automated weekly `nix flake update`, plus cf bumped to its latest
-          release by `scripts/update-pins.sh`.
+          Automated weekly `nix flake update`.
 
           Validated by the run that opened this PR: `nix flake check` passed
           and `nixosConfigurations.kakapo` built to a `toplevel`. GitHub does

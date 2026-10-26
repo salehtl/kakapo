@@ -7,7 +7,7 @@ broken before (here or upstream), and how to check it after the test.
 Contents: nixpkgs itself · Immich · PostgreSQL and its extensions · kernel
 and NVIDIA · AdGuard Home · nginx and the LAN proxy · ntfy · Grafana and
 Prometheus · Tailscale, OpenSSH, systemd, iptables · sops-nix · ledger ·
-cf (update-pins) · Gramps Web images · hasala · claude-code · a NixOS
+Gramps Web images · hasala · claude-code · a NixOS
 release upgrade (26.05 -> 26.11)
 
 ## Finding the history of one package or module
@@ -198,26 +198,6 @@ changes. The Nix build embeds `internal/web/dist` and never runs Node
 `internal/web/dist`, the verdict is **Hold: ledger dist not rebuilt**; hold
 `ledger` back as in `failing-bumps.md` section 1. Check
 `curl -s 127.0.0.1:8090/api/health` reports `"db":"ok"`.
-
-## cf CLI (`scripts/update-pins.sh`)
-
-Bumped to npm `latest` weekly in the same PR (`pkgs/cf/package.nix`,
-`pkgs/cf/package-lock.json`). It is a CLI only, installed system-wide
-(`hosts/kakapo/default.nix`); no service runs it. (`lan-proxy-dns.sh` has a
-shell function also named `cf` that wraps `curl`; it does not use this CLI.)
-`update-pins.sh` also re-resolves every transitive dependency weekly, and
-the result runs on a host where agents have sudo. Check it:
-
-1. `git diff origin/master -- pkgs/cf/package-lock.json` and list every
-   added or changed `node_modules/<name>` with its version.
-2. For each, `nix shell nixpkgs#nodejs -c npm view <name> time maintainers --json`.
-   **Hold** if a version was published less than 7 days ago or the
-   maintainers changed.
-3. **Hold** on any new `"hasInstallScript": true` entry.
-4. To hold cf back, take `pkgs/cf/` from `origin/master` on your own branch
-   (`failing-bumps.md` section 1).
-
-See also kakapo-security.
 
 ## Gramps Web images (by hand)
 

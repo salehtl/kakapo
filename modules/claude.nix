@@ -99,7 +99,8 @@ in
     5. If the PR conflicts with `master`, rebase, re-test and force-push your
        own branch.
     6. After a merge, build `master`, guarded-test it and make it the boot
-       default, so a reboot before 04:00 keeps it.
+       default, so a reboot before 04:00 keeps it. The kakapo-deploy skill's
+       `scripts/deploy.sh <squash sha>` does all of this in one run.
 
     - Editing files on the host deploys nothing. Changes land when a PR is
       merged into `master`, by Saleh or on his word.

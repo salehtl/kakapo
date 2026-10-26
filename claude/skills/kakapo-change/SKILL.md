@@ -121,9 +121,14 @@ is in progress, and whether the running system differs from the boot default (a
 live test activation, possibly another agent's branch). Exit 1 means wait.
 `guarded-test.sh` itself also waits on the lock (up to 15 minutes, then exit 5).
 
-If a NOTE says another agent's test is live, your test will replace it. That is
-allowed (each test runs under the lock), but say in your PR that the host may now
-be running your branch.
+If a NOTE says a test activation is live, find whose it is before you test:
+your own earlier test, or another agent's branch (`gh pr list`, and
+`nix store diff-closures /run/current-system "$out"` as its own step: units or
+packages outside your change that would disappear are someone else's work).
+`guarded-test.sh` refuses to replace a live test (exit 6) unless you pass
+`--replace` after the path. Pass it only for your own test, or when Saleh agreed
+to replace the other one. On 2026-10-26 a docs PR's test silently stopped another
+agent's `nook` services, and the GC then deleted that system.
 
 ### 4. Extra checks by what you changed
 
@@ -189,6 +194,7 @@ lines, not only the exit code: exits 1 and 4 both print it.
 | 3 | Something else replaced your system mid-test | Run `host-busy.sh`, then re-run the test. |
 | 4 | Activation, a unit reload or the firewall failed; rolled back | Read the printed units and their journals, fix, rebuild, re-test. |
 | 5 | Gave up waiting 15 min for the lock | Another agent is testing. Wait and retry. |
+| 6 | Another test activation is live; nothing done | See step 3. `--replace` only for your own test or on Saleh's word. |
 
 After exit 0, check the thing you changed actually works: `systemctl --failed` is
 clean, the service answers on its `127.0.0.1` port, and `https://<name>.salehtl.com`
@@ -196,7 +202,7 @@ resolves and serves. `kakapo-health` has more checks. "Activated" is not "works"
 
 If it does not work, the guard will not undo it (it watches only DNS, the LAN path,
 the firewall and failed units). Put the host back at once with
-`scripts/guarded-test.sh "$before"`, then fix and re-test.
+`scripts/guarded-test.sh "$before" --replace` (your own test is the live one), then fix and re-test.
 
 ### 6. Commit, push, open the PR
 
@@ -306,6 +312,6 @@ or 04:00 has already replaced it; leave it and say so.
 <this skill's directory>/scripts/host-busy.sh    # must exit 0
 if [ "$(readlink -f /run/current-system)" = "$out" ]; then
   master_out=$(nix build --refresh --no-link --print-out-paths github:salehtl/kakapo#nixosConfigurations.kakapo.config.system.build.toplevel)
-  scripts/guarded-test.sh "$master_out"
+  scripts/guarded-test.sh "$master_out" --replace   # the live test is yours (checked above)
 fi
 ```

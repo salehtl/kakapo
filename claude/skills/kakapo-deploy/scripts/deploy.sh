@@ -2,11 +2,12 @@
 # Deploy one merged kakapo commit to the host: SKILL.md steps 4 to 6 in one
 # run. It never merges; run it only after Saleh's merge word and pr-gate.sh.
 #
-#   deploy.sh <squash sha> [--base <pre-merge master sha>] [--near-upgrade]
+#   deploy.sh <squash sha> [--base <pre-merge master sha>] [--near-upgrade] [--replace]
 #
 # Steps, each a hard stop on failure:
 #   1. <sha> is on master; nixos-upgrade is not running; 04:00 is >30 min away
-#      (--near-upgrade overrides that, only on Saleh's word).
+#      (--near-upgrade overrides that, only on Saleh's word); no other test
+#      activation is live (--replace only when it is your own, or Saleh agreed).
 #   2. Fetch scripts/guarded-test.sh from <base> (default <sha>^, the pre-merge
 #      master of a squash merge), so a merged PR cannot weaken its own guard.
 #   3. Build github:salehtl/kakapo/<sha> and print the closure diff.
@@ -25,16 +26,18 @@
 # 64 usage.
 set -uo pipefail
 repo=salehtl/kakapo
-usage() { echo "usage: deploy.sh <sha> [--base <sha>] [--near-upgrade]" >&2; exit 64; }
+usage() { echo "usage: deploy.sh <sha> [--base <sha>] [--near-upgrade] [--replace]" >&2; exit 64; }
 sha=${1:-}
 [[ $sha =~ ^[0-9a-f]{7,40}$ ]] || usage
 shift
 base=''
 near=0
+replace=0
 while [ $# -gt 0 ]; do
   case $1 in
   --base) base=${2:-}; [[ $base =~ ^[0-9a-f]{7,40}$ ]] || usage; shift 2 ;;
   --near-upgrade) near=1; shift ;;
+  --replace) replace=1; shift ;;
   *) usage ;;
   esac
 done
@@ -57,7 +60,10 @@ fi
 prev_run=$(readlink /run/current-system)
 prev_boot=$(readlink -f /nix/var/nix/profiles/system)
 failed_before=$(systemctl --failed --no-legend --plain | awk '{print $1}' | sort)
-[ "$prev_run" = "$prev_boot" ] || say INFO "a test activation is live ($prev_run); this deploy replaces it"
+if [ "$prev_run" != "$prev_boot" ]; then
+  [ $replace = 1 ] || die 1 "a test activation is live ($prev_run): find whose; re-run with --replace only if it is yours or Saleh agreed"
+  say INFO "replacing the live test activation $prev_run (--replace)"
+fi
 say OK "commit $sha; rollback target $prev_boot"
 
 # 2. Pre-merge guard copy.
@@ -80,11 +86,14 @@ nix store diff-closures "$prev_run" "$out"
 echo "----"
 
 # 4. Guarded activation.
-"$tmp/guarded-test.sh" "$out"
+garg=()
+[ $replace = 0 ] || garg=(--replace)
+"$tmp/guarded-test.sh" "$out" "${garg[@]}"
 rc=$?
 case $rc in
 0) say OK "guarded-test.sh passed" ;;
 5) die 5 "guard lock busy for 15 min; try later" ;;
+6) die 1 "another test activation went live before the guard ran; find whose" ;;
 *) die 3 "guarded-test.sh exit $rc (see SKILL.md step 4); boot default unchanged" ;;
 esac
 

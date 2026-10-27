@@ -19,8 +19,13 @@
 # Secrets: FAL_KEY for the planner's paid calls (library adds from photos,
 #          Render), from secrets/nook.yaml as an EnvironmentFile
 #          (`nook/fal_env`, one line `FAL_KEY=...`). Spend is capped per UTC
-#          day in nook-web (dailySpendUsd).
-{ config, ... }:
+#          day in nook-web (dailySpendUsd). Until secrets/nook.yaml exists,
+#          nook runs without a key: library adds from photos and Render say
+#          "no fal key on the server".
+{ config, lib, ... }:
+let
+  hasFalKey = builtins.pathExists ../../secrets/nook.yaml;
+in
 {
   # Splat counts: nook v4 (0.3.0) sizes training to each capture and caps it
   # per GPU class (2M on the RTX 2060), delivering at most 1.5M to the
@@ -30,15 +35,17 @@
     # The LAN proxy's name for the planner; anything else is refused (DNS
     # rebinding guard).
     allowedHosts = [ "nook.salehtl.com" ];
-    falKeyFile = config.sops.secrets."nook/fal_env".path;
+    falKeyFile = if hasFalKey then config.sops.secrets."nook/fal_env".path else null;
     dailySpendUsd = 2;
   };
 
-  sops.secrets."nook/fal_env" = {
-    sopsFile = ../../secrets/nook.yaml;
-    key = "nook/fal_env";
-    owner = "nook";
-    restartUnits = [ "nook-web.service" ];
+  sops.secrets = lib.optionalAttrs hasFalKey {
+    "nook/fal_env" = {
+      sopsFile = ../../secrets/nook.yaml;
+      key = "nook/fal_env";
+      owner = "nook";
+      restartUnits = [ "nook-web.service" ];
+    };
   };
 
   # Evals over ssh (nook's evals/remote.sh) take /run/nook/gpu.lock, the lock

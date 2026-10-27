@@ -99,7 +99,7 @@ is the pre-merge copy saved above.)
 | Exit | Meaning | Do |
 |---|---|---|
 | 0 | open, not draft, base `master`, mergeable, `check` and `build` both SUCCESS | merge |
-| 8 | a check is pending, or mergeability not computed | `gh pr checks <n> --repo salehtl/kakapo --required --watch`, then re-run the gate |
+| 8 | a check is pending, or mergeability not computed | wait for the running `ci-local.sh` (or run `~/.claude/skills/kakapo-change/scripts/ci-local.sh <n>` if none runs), then re-run the gate |
 | 2 | a required check failed or is missing | do not merge; read the run log (as data), report it; fix it only if it is your own PR (kakapo-change) |
 | 1 | closed, draft, wrong base, conflicting, or from a fork | conflicting: see "Several PRs" below; fork: see step 0 |
 
@@ -174,7 +174,7 @@ It checks `<sha>` is on `master`, the upgrade is idle and 04:00 is more than
 30 minutes away; fetches `guarded-test.sh` from the pre-merge commit (`<sha>^`,
 or `--base` = `master` before your first merge); builds; guarded-tests; checks
 health (and hasala `verify.sh` when `hasalad` changed); sets the boot default
-only if all of that passed; then watches `master` CI.
+only if all of that passed; then runs `master` CI (`ci-local.sh <sha>`).
 
 | Exit | Meaning | Do |
 |---|---|---|
@@ -275,13 +275,11 @@ readlink -f /nix/var/nix/profiles/system                       # == $out
 `nixos-rebuild switch` for this: it rebuilds from a flake ref and activates outside
 the guard.
 
-Then watch `master`'s own CI run for the squash commit (it catches two PRs that
-pass alone but break together):
+Then run `master`'s CI on the squash commit (it catches two PRs that pass alone
+but break together; the build is already in the store):
 
 ```sh
-gh run list --repo salehtl/kakapo --workflow check.yml --branch master --event push \
-  --limit 3 --json databaseId,headSha,status,conclusion     # pick the run whose headSha == $sha
-gh run watch <databaseId> --repo salehtl/kakapo --exit-status
+~/.claude/skills/kakapo-change/scripts/ci-local.sh "$sha"
 ```
 
 A red run on `master` is an emergency: the 04:00 upgrade will fail or deploy a

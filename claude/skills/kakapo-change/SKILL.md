@@ -1,6 +1,6 @@
 ---
 name: kakapo-change
-description: End-to-end workflow for changing the kakapo NixOS flake (github:salehtl/kakapo) and delivering it as a tested, green pull request. Use it whenever a task on kakapo needs ANY edit to the flake - adding or removing a package, service, module, nginx/lan-proxy name, firewall rule, sops secret, user key, AdGuard or DNS setting, CI workflow, CLAUDE.md note, or a flake input bump - and whenever someone says "fix it in the kakapo flake", "open a PR on salehtl/kakapo", "make the change on kakapo", "add X to kakapo", or asks to rebase or repair a kakapo PR this session opened or its failing CI. Covers clone, branch, nix fmt, toplevel build, closure diff, guarded-test activation, push, gh pr create, CI watch and conflict rebase. Stops at an open, green PR; it never merges. Not for projects under ~/src: they have their own flakes (see /etc/claude-code/projects.md).
+description: End-to-end workflow for changing the kakapo NixOS flake (github:salehtl/kakapo) and delivering it as a tested, green pull request. Use it whenever a task on kakapo needs ANY edit to the flake - adding or removing a package, service, module, nginx/lan-proxy name, firewall rule, sops secret, user key, AdGuard or DNS setting, CI workflow, CLAUDE.md note, or a flake input bump - and whenever someone says "fix it in the kakapo flake", "open a PR on salehtl/kakapo", "make the change on kakapo", "add X to kakapo", or asks to rebase or repair a kakapo PR this session opened or its failing CI. Covers clone, branch, nix fmt, toplevel build, closure diff, guarded-test activation, push, gh pr create, local CI (ci-local.sh) and conflict rebase. Stops at an open, green PR; it never merges. Not for projects under ~/src: they have their own flakes (see /etc/claude-code/projects.md).
 ---
 
 # Changing kakapo
@@ -241,37 +241,37 @@ result first, short sentences, verb first in instructions, no "-ing" forms, no
 contractions, technical names in backticks. For example:
 
 > PR #42 is open: <url>. It adds `foo` to `modules/services/lan-proxy.nix`.
-> `guarded-test.sh` passed. `check` and `build` run now. kakapo runs this branch
+> `guarded-test.sh` passed. `check` and `build` pass. kakapo runs this branch
 > until 04:00. Tell me "merge #42" to deploy it.
 
-Do not stop here. Continue to step 8 in the same turn.
+Run step 8 before you send it, so the message can say `check` and `build` pass.
 
-### 8. Watch CI to the end
+### 8. Run CI on kakapo
+
+GitHub runs no CI for this repo (`check.yml` was removed on 2026-10-27: a cold
+runner took 30-40 minutes). CI runs here, on the pushed commit:
 
 ```sh
-gh pr checks <n> --repo salehtl/kakapo --watch --required
+~/.claude/skills/kakapo-change/scripts/ci-local.sh <n>
 ```
 
-Right after `gh pr create`, GitHub may have no check runs yet, and gh prints "no
-checks reported" and exits non-zero. That is not a failure: wait 15 seconds and
-re-run until both `check` and `build` appear. The output gives the run URL, which
-holds the `<run-id>` for `gh run view`.
+Run the installed copy (from deployed `master`), never the one in your clone: a
+PR must not be able to change the script that passes it. It refuses fork PRs.
+It clones the PR's head commit from GitHub, runs `check` (lock in sync +
+`nix flake check`, evaluation and formatting) and `build` (the full toplevel),
+and posts both as commit statuses. The master ruleset requires both, so a PR
+cannot merge until both pass. Most of the build is already in the host's store,
+so a run takes minutes. Run it again after each push: a status covers only the
+commit it ran on.
 
-`check` (lock in sync + `nix flake check`, evaluation and formatting) and `build`
-(the full toplevel, including the NVIDIA driver) are the required jobs; a PR cannot
-merge until both pass. Watch them to completion; do not report "CI running" and
-leave.
+- **Real failure:** the script prints the last 40 log lines. Fix on your branch,
+  rebuild, re-test if what the host would run changed, push, run it again.
+  Typical causes: unformatted Nix (`nix fmt`), a lock out of sync with
+  `flake.nix`, an assertion, a hash mismatch.
+- **Fetch or network failure** (nothing to do with your diff): run it again once.
 
-- **Real failure:** read the log (`gh run view <run-id> --repo salehtl/kakapo
-  --log-failed`), fix on your branch, rebuild, re-test if what the host would run
-  changed, push. Typical causes: unformatted Nix (`nix fmt`), a lock out of sync
-  with `flake.nix`, an assertion, a hash mismatch.
-- **Infrastructure flake** (runner lost, cache or network timeout, nothing to do with
-  your diff): `gh run rerun <run-id> --repo salehtl/kakapo --failed`, once or
-  twice. If it keeps failing the same way, treat it as real.
-
-When both are green, tell Saleh in one short STE line (for example "`check` and
-`build` pass on PR #42. It is ready to merge."). If you cannot make it green, say
+When both pass, tell Saleh in one short STE line (for example "`check` and
+`build` pass on PR #42. It is ready to merge."). If you cannot make it pass, say
 what fails and why, in STE, and leave the PR open.
 
 ### 9. Keep it mergeable
@@ -291,7 +291,7 @@ scripts/guarded-test.sh "$out"            # again, if what the host would run ch
 git push --force-with-lease origin HEAD
 ```
 
-Then watch CI again (step 8). Conflicts are mostly in `CLAUDE.md`, package lists and
+Then run CI again (step 8). Conflicts are mostly in `CLAUDE.md`, package lists and
 `flake.lock`. The ruleset does not require the branch to be up to date with
 `master`, so rebase only for a real conflict or for a failure that `master` already
 fixed.

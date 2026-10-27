@@ -65,7 +65,7 @@ command to run.
 | `services` | a core unit from `modules/services/*` is not active; "not found" means the list in the script drifted from the flake | `systemctl status <unit>` |
 | `hasala` | `hasala.target` stopped with no failed unit (WARN: the kill switch?), a Hasala unit failed, or the target is active but a member is down (FAIL) | `systemctl list-dependencies hasala.target`, `journalctl -u hasalad -n 100` |
 | `tailscale` | backend not `Running`, or node key expires in <21 days (SKIP if the JSON cannot be parsed) | `tailscale status`, `systemctl status tailscaled` |
-| `prs` | `master` CI is red (FAIL, an emergency before 04:00). Open PRs are listed for information only; a fork PR shows as `#n[external]`; checks are green only when all are SUCCESS, NEUTRAL or SKIPPED | `gh pr list -R salehtl/kakapo`, `gh pr checks <n>` |
+| `prs` | `master` CI is red (FAIL, an emergency before 04:00): the `check`/`build` statuses on `master`'s head, from `ci-local.sh` or a bot workflow; `none` means nobody ran it on that commit yet. Open PRs are listed for information only; a fork PR shows as `#n[external]`; checks are green only when all are SUCCESS, NEUTRAL or SKIPPED | `gh pr list -R salehtl/kakapo`, `gh pr checks <n>` |
 
 Notes that change the verdict:
 

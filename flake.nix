@@ -119,7 +119,6 @@
           {
             nixpkgs.overlays = [
               (final: _prev: {
-                cf = final.callPackage ./pkgs/cf/package.nix { };
                 unstable = unstableFor final.stdenv.hostPlatform.system;
               })
             ];

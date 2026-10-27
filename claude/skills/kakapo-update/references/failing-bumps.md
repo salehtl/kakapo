@@ -26,7 +26,6 @@ them and find the first real `error:`. Then reproduce in your clone:
 ```sh
 git switch -c flake-lock-fix origin/master
 nix flake update
-nix shell nixpkgs#nodejs nixpkgs#jq nixpkgs#curl -c scripts/update-pins.sh
 nix flake lock --no-update-lock-file && nix flake check --print-build-logs
 nix build --no-update-lock-file --no-link --print-out-paths .#nixosConfigurations.kakapo.config.system.build.toplevel
 ```
@@ -46,9 +45,6 @@ Usual causes and fixes:
 - **An assertion fires**: the new nixpkgs changed something a guardrail
   watches. The config is wrong, not the assertion (CLAUDE.md). Investigate;
   never weaken the assertion to make the bump pass.
-- **`update-pins.sh` fails** (npm registry, cf's tarball layout): the lock
-  step is fine; open the PR with only `flake.lock` moved and report cf
-  separately.
 - **Infrastructure** (runner timeout, cache outage): re-run the workflow
   with `gh workflow run update-flake-lock.yml -R salehtl/kakapo`. It never
   merges, but it force-pushes `flake-lock-bump` with a newer lock, which

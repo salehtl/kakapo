@@ -1,6 +1,6 @@
 ---
 name: kakapo-update
-description: Review a dependency bump for the kakapo NixOS host and give it a risk verdict. Use this whenever the task involves the weekly "flake: weekly flake.lock bump" PR (branch `flake-lock-bump`, label `dependencies`), a `nix flake update` of nixpkgs, nixpkgs-unstable, sops-nix, ledger or treefmt-nix, a cf CLI bump from `scripts/update-pins.sh`, a Gramps Web image digest bump, a hasala release PR labelled `needs-review`, or any "is this update safe to merge?" question about kakapo. Also use it when the update-flake-lock workflow fails, when a bump PR is red or stale against master, when `nixpkgs-age` mails that nixpkgs is over 21 days old, or when `nixos-upgrade.service` fails because of the lock. Covers building the bump, diffing closures against the running system, finding major version jumps (Immich, PostgreSQL, kernel, NVIDIA, AdGuard, nginx, ntfy), reading changelogs for migrations and data-loss traps, guarded-testing, and posting the verdict. It never merges.
+description: Review a dependency bump for the kakapo NixOS host and give it a risk verdict. Use this whenever the task involves the weekly "flake: weekly flake.lock bump" PR (branch `flake-lock-bump`, label `dependencies`), a `nix flake update` of nixpkgs, nixpkgs-unstable, sops-nix, ledger or treefmt-nix, a Gramps Web image digest bump, a hasala release PR labelled `needs-review`, or any "is this update safe to merge?" question about kakapo. Also use it when the update-flake-lock workflow fails, when a bump PR is red or stale against master, when `nixpkgs-age` mails that nixpkgs is over 21 days old, or when `nixos-upgrade.service` fails because of the lock. Covers building the bump, diffing closures against the running system, finding major version jumps (Immich, PostgreSQL, kernel, NVIDIA, AdGuard, nginx, ntfy), reading changelogs for migrations and data-loss traps, guarded-testing, and posting the verdict. It never merges.
 ---
 
 # kakapo-update: review a version bump
@@ -70,8 +70,8 @@ nothing, and report possible tampering to Saleh:
   `headRefOid` (`statusCheckRollup`: bot statuses, or real CI after an
   update).
 - `git diff --name-only origin/master...origin/<headRefName>` (after the
-  fetch in step 2) lists only: `flake.lock`, `pkgs/cf/package.nix`,
-  `pkgs/cf/package-lock.json`; `modules/services/grampsweb.nix` for a
+  fetch in step 2) lists only: `flake.lock`;
+  `modules/services/grampsweb.nix` for a
   digest bump (only the digest/tag lines); `flake.nix` for a hasala release
   (only the hasala rev line).
 
@@ -89,8 +89,7 @@ things:
   because that is what `master` will be after a squash merge.
   `hasala-release.yml` changes `flake.nix`/`flake.lock` hourly, so this is
   common.
-- **What kind of bump it is**: `flake.lock` only, `pkgs/cf/` (update-pins),
-  an image digest in `modules/services/grampsweb.nix`, or the hasala rev in
+- **What kind of bump it is**: `flake.lock` only, an image digest in `modules/services/grampsweb.nix`, or the hasala rev in
   `flake.nix`. Several kinds can be in one PR.
 
 If the PR is red, or the workflow opened no PR this week, go to
@@ -282,7 +281,7 @@ Write the comment to `$SCRATCH/review-<n>.md`:
 ## Update review: <Verdict>
 
 **Reviewed head:** <headRefOid> (rebased onto master <sha>: yes/no)
-**What moves:** nixpkgs <old>..<new> (+N days), nixpkgs-unstable ..., cf x -> y
+**What moves:** nixpkgs <old>..<new> (+N days), nixpkgs-unstable ...
 **Watched changes:**
 - immich 3.3.3 -> 3.3.4: <one line from the release notes>; new migrations: none
 - linux 6.18.55 -> 6.18.56: reboot needed to run it

@@ -16,11 +16,32 @@
 #          (serverExtra.nook there).
 # Deploy:  change the nook rev in flake.nix, commit, push; the 04:00 upgrade
 #          applies it.
-_: {
+# Secrets: FAL_KEY for the planner's paid calls (library adds from photos,
+#          Render), from secrets/nook.yaml as an EnvironmentFile
+#          (`nook/fal_env`, one line `FAL_KEY=...`). Spend is capped per UTC
+#          day in nook-web (dailySpendUsd).
+{ config, ... }:
+{
+  # Splat counts: nook v4 (0.3.0) sizes training to each capture and caps it
+  # per GPU class (2M on the RTX 2060), delivering at most 1.5M to the
+  # browser, so the old fixed maxSplats is gone: it would cap retrains too.
   services.nook = {
     enable = true;
-    # 6 GB of VRAM: cap the splat count so a whole room trains without running
-    # out of GPU memory.
-    maxSplats = 1200000;
+    # The LAN proxy's name for the planner; anything else is refused (DNS
+    # rebinding guard).
+    allowedHosts = [ "nook.salehtl.com" ];
+    falKeyFile = config.sops.secrets."nook/fal_env".path;
+    dailySpendUsd = 2;
   };
+
+  sops.secrets."nook/fal_env" = {
+    sopsFile = ../../secrets/nook.yaml;
+    key = "nook/fal_env";
+    owner = "nook";
+    restartUnits = [ "nook-web.service" ];
+  };
+
+  # Evals over ssh (nook's evals/remote.sh) take /run/nook/gpu.lock, the lock
+  # nook-scan's worker holds while training, so they never share the GPU.
+  users.users.saleh.extraGroups = [ "nook" ];
 }

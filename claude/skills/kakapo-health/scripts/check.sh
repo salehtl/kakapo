@@ -410,9 +410,12 @@ check_prs() {
   list=$(gh pr list -R "$REPO" --state open --json number,isDraft,labels,statusCheckRollup,headRepositoryOwner \
     --jq '.[] | if .headRepositoryOwner.login != "salehtl" then "#\(.number)[external]" else "#\(.number)\(if .isDraft then "(draft)" else "" end)\([.labels[].name] | if length>0 then "["+join(",")+"]" else "" end):\([.statusCheckRollup[]? | (.conclusion // .state)] | if length==0 then "no-checks" elif all(.=="SUCCESS" or .=="NEUTRAL" or .=="SKIPPED") then "green" elif any(.=="PENDING" or .=="IN_PROGRESS" or .=="QUEUED" or .=="EXPECTED" or .=="") then "pending" else "red" end)" end' 2>/dev/null) ||
     { emit SKIP prs "gh pr list failed"; return; }
-  ci=$(gh run list -R "$REPO" --branch master --workflow check.yml -L 1 --json status,conclusion,headSha \
-    --jq '.[0] | "\(.status)/\(.conclusion) \(.headSha[:7])"' 2>/dev/null)
-  case "$ci" in completed/success*) ;; completed/*) st=FAIL ;; *) ;; esac
+  # master CI is the `check`/`build` statuses that ci-local.sh (run by
+  # deploy.sh) or a bot workflow posted on master's head; "none" means nobody
+  # ran it on that commit yet.
+  ci=$(gh api "repos/$REPO/commits/master/status" \
+    --jq 'if .total_count == 0 then "none" else .state end + " " + .sha[:7]' 2>/dev/null)
+  case "$ci" in failure* | error*) st=FAIL ;; *) ;; esac
   # A red PR is information for Saleh, not a host fault; only red master CI alerts.
   emit "$st" prs "master CI ${ci:-unknown}; open: $(echo "$list" | grep -c '#') ${list:+($(echo "$list" | paste -sd' '))}"
 }

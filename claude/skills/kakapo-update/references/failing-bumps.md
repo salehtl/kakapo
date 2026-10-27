@@ -52,7 +52,7 @@ Usual causes and fixes:
   check `gh pr view flake-lock-bump -R salehtl/kakapo --comments` for a
   review in progress, and say in your report that the branch was replaced.
 
-Your fix PR runs real CI because you push it. Review it with the main
+Run `ci-local.sh` on your fix PR (kakapo-change step 8). Review it with the main
 SKILL.md workflow like any bump, and tell Saleh it replaces this week's
 missing bot PR.
 
@@ -60,7 +60,7 @@ missing bot PR.
 
 - **Red `check`/`build`** on the bot PR cannot come from the bot (its
   statuses are only posted on success). It means someone pushed to the
-  branch (for example "Update branch"), and real CI ran on the result.
+  branch (for example "Update branch"), and `ci-local.sh` ran on the result.
   First find who pushed and what they changed
   (`gh pr view <n> --json commits`, then `git show` each non-bot commit);
   anything beyond a merge of `master` fails the step 1 gate in SKILL.md.

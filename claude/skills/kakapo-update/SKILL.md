@@ -67,8 +67,8 @@ nothing, and report possible tampering to Saleh:
 - On `flake-lock-bump`: the bump commit is by `github-actions[bot]`. The
   only other commits allowed are `salehtl`'s "Merge branch 'master' into
   flake-lock-bump" ("Update branch"). `check` and `build` are green on
-  `headRefOid` (`statusCheckRollup`: bot statuses, or real CI after an
-  update).
+  `headRefOid` (`statusCheckRollup`: bot statuses, or `ci-local.sh`
+  statuses after an update).
 - `git diff --name-only origin/master...origin/<headRefName>` (after the
   fetch in step 2) lists only: `flake.lock`;
   `modules/services/grampsweb.nix` for a

@@ -15,7 +15,7 @@
 #   5. Health: still the running system, AdGuard answers, no new failed unit,
 #      core units active, the LAN proxy answers, and hasala verify.sh when
 #      the hasalad binary changed.
-#   6. Make it the boot default, then watch master CI for <sha>.
+#   6. Make it the boot default, then run ci-local.sh on <sha> (master CI).
 #
 # Exit codes: 0 deployed and master CI green; 1 a precondition failed,
 # nothing activated; 2 the build failed; 3 guarded-test.sh failed (it rolled
@@ -137,15 +137,9 @@ for f in kernel initrd; do
     say WARN "$f changed: a reboot is needed to use it (Saleh's call)"
 done
 
-run=
-for _ in $(seq 1 30); do
-  run=$(gh run list --repo "$repo" --workflow check.yml --branch master --event push --limit 10 \
-    --json databaseId,headSha --jq ".[] | select(.headSha == \"$sha\") | .databaseId" | head -1)
-  [ -n "$run" ] && break
-  sleep 10
-done
-[ -n "$run" ] || die 6 "no master CI run found for $sha"
-gh run watch "$run" --repo "$repo" --exit-status >/dev/null 2>&1 ||
-  die 6 "master CI run $run is red: the 04:00 upgrade will fail; open a revert PR"
-say OK "master CI run $run passed"
+# master's own CI (ci-local.sh posts `check`/`build` on <sha>): it catches two
+# PRs that pass alone but break together. The build is already in the store.
+ci=$(dirname "$(readlink -f "$0")")/../../kakapo-change/scripts/ci-local.sh
+"$ci" "$sha" || die 6 "ci-local.sh on master $sha failed: the 04:00 upgrade will fail; open a revert PR"
+say OK "master CI (ci-local.sh) passed on ${sha:0:7}"
 say DEPLOYED "$sha $out"

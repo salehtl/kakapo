@@ -43,7 +43,8 @@ case "$(get mergeable)" in
   *) echo "#$n is $(get mergeable) with master: rebase it first" >&2; exit 1 ;;
 esac
 
-# The master ruleset requires exactly these two (.github/workflows/check.yml).
+# The master ruleset requires exactly these two (posted by
+# kakapo-change/scripts/ci-local.sh, or by the bot workflows).
 # Every entry with that name must be SUCCESS: a failed duplicate (a check run
 # and a commit status, say) blocks, whichever is listed last.
 rc=0

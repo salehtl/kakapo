@@ -259,8 +259,8 @@ in
       prs=$(curl -fsS --max-time 15 "$api/pulls?state=open&per_page=30" | jq -r '.[] |
         if .head.repo.owner.login != "salehtl" then "#\(.number) [external]"
         else "#\(.number) \(.title)" end') || prs="(GitHub API failed)"
-      ci=$(curl -fsS --max-time 15 "$api/actions/workflows/check.yml/runs?branch=master&event=push&per_page=1" |
-        jq -r '.workflow_runs[0] | "\(.status)/\(.conclusion) \(.head_sha[:7])"') || ci="(GitHub API failed)"
+      ci=$(curl -fsS --max-time 15 "$api/commits/master/status" |
+        jq -r '(if .total_count == 0 then "none" else .state end) + " " + .sha[:7]') || ci="(GitHub API failed)"
 
       case "$rc" in
         0) prio=low tags=white_check_mark ;;

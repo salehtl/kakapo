@@ -179,6 +179,11 @@ in
       lifecycleUrl = "https://api.hasala.app/hooks/outlook/graph/lifecycle";
     };
 
+    # CORS for the website's public routes (the freeze page calls the API
+    # cross-origin). The module's default is the same; set here so the
+    # header does not depend on an upstream default.
+    web.origins = [ "https://hasala.app" ];
+
     backup = {
       enable = true;
       # The media SSD (hosts/kakapo/hardware.nix), not the root disk.

@@ -121,11 +121,12 @@ the host.
   (`ssh -L 5173:127.0.0.1:5173 kakapo`). If a phone needs it, ask the user to
   give it a tailnet-only name in the kakapo flake.
 - Ports already taken, never reuse: 22, 53, 443, 2283, 3000, 3001, 3003,
-  5432, 8090, 8471, 8472, 9090, 9100, 9471, 9472, 9473, 9633, 9835. Check
-  `ss -ltn` before picking one. 8471 is Hasala's API and is publicly routed
-  through its tunnel: never bind it, even while hasalad is stopped. 8472 is
-  Hasala's operator console: nginx sends tailnet traffic to it even while the
-  console is stopped, so never bind it either.
+  5432, 8090, 8095, 8096, 8471, 8472, 9090, 9100, 9471, 9472, 9473, 9633,
+  9835. Check `ss -ltn` before picking one. 8471 is Hasala's API and is
+  publicly routed through its tunnel: never bind it, even while hasalad is
+  stopped. 8472 is Hasala's operator console: nginx sends tailnet traffic to it
+  even while the console is stopped, so never bind it either. The same goes for
+  8096 (nook's web app, proxied to the house) and 8095 (its jobs server).
 - A database or queue for a project runs from the project: `docker compose`,
   or devenv/process-compose. Never use the host's Postgres (5432) or Redis:
   they belong to Immich.

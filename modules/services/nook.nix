@@ -14,8 +14,8 @@
 #          house network and tailnet, no login (Saleh's choice, 2026-10-26;
 #          see lan-proxy.nix), with large unbuffered uploads
 #          (serverExtra.nook there).
-# Deploy:  change the nook rev in flake.nix, commit, push; the 04:00 upgrade
-#          applies it.
+# Deploy:  change the nook rev in flake.nix in a PR; merging it deploys (the
+#          04:00 upgrade, or scripts/deploy.sh in the kakapo-deploy skill).
 # Secrets: FAL_KEY for the planner's paid calls (library adds from photos,
 #          Render), from secrets/nook.yaml as an EnvironmentFile
 #          (`nook/fal_env`, one line `FAL_KEY=...`). Spend is capped per UTC

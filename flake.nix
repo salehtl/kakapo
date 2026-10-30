@@ -4,7 +4,7 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05";
 
-    # Claude Code, herdr (not in 26.05), and Immich with its NixOS module.
+    # Claude Code, herdr (not in 26.05), tuios (26.05 has only 0.7.0), and Immich with its NixOS module.
     # The 26.05 release branch does not backport Claude Code: it sat on 2.1.223
     # while upstream shipped 2.1.287, and a `nix flake update` moved the
     # whole release forward three days without moving this package at all. The

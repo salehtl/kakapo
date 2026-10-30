@@ -111,6 +111,7 @@
   environment.systemPackages = [
     pkgs.unstable.claude-code
     pkgs.unstable.herdr
+    pkgs.unstable.tuios
     pkgs.gh
   ];
 

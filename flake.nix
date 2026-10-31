@@ -47,7 +47,7 @@
     # work; release by changing the rev. Follows our nixpkgs: nook pins nothing
     # of its own, and sharing the host's keeps the closure small.
     nook = {
-      url = "github:salehtl/nook/8d1f89ef2d82b29ab951a2a739831a316d8aefe3";
+      url = "github:salehtl/nook/692e123be62aa21fde3066ea258c06192e79f98e";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };

@@ -27,8 +27,8 @@ let
   hasFalKey = builtins.pathExists ../../secrets/nook.yaml;
 in
 {
-  # Splat counts: nook v4 (0.3.0) sizes training to each capture and caps it
-  # per GPU class (2M on the RTX 2060), delivering at most 1.5M to the
+  # Splat counts: nook sizes training to each capture and caps it
+  # per GPU class (1.5M on the RTX 2060), delivering at most 1.5M to the
   # browser, so the old fixed maxSplats is gone: it would cap retrains too.
   services.nook = {
     enable = true;

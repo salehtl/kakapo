@@ -58,6 +58,8 @@ def classify(proto, host, port, proc):
         return "EXPECTED", "LAN proxy"
     if "tailscaled" in proc and (in_tailnet(host) or (proto == "udp" and port == 41641)):
         return "EXPECTED", "tailscaled (WireGuard / peerapi)"
+    if proto == "udp" and "mosh-server" in proc and in_tailnet(host) and 60000 <= port <= 61000:
+        return "EXPECTED", "mosh session, bound to the tailnet address"
     if proto == "udp" and "cloudflared" in proc and wildcard:
         return "EXPECTED", "cloudflared outbound QUIC (Hasala tunnel)"
     return "UNEXPECTED", "not loopback and not a documented exception"

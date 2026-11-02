@@ -40,7 +40,7 @@
     # none exists yet, and once one does it can replace the rev.)
     # Deliberately NO `follows`: the host runs exactly the closure hasala's CI
     # built and tested (its own nixos-26.05 lock, Go 1.27 from nixos-unstable).
-    hasala.url = "github:salehtl/hasala/22151cce5416f64b13a147200f520e9628e9e39f";
+    hasala.url = "github:salehtl/hasala/d3d8fe890707bf5b606886526af3d292773ac651";
     # nook: the reading-room planner and the GPU trainer for nook-scan iPhone
     # room scans (modules/services/nook.nix), for its NixOS module. Pinned to a
     # commit like hasala, so the weekly lock bump never deploys unreleased nook

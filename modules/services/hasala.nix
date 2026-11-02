@@ -183,6 +183,10 @@ in
     # cross-origin). The module's default is the same; set here so the
     # header does not depend on an upstream default.
     web.origins = [ "https://hasala.app" ];
+    # The site's forms send a Turnstile token (widget on hasala.app, site key in
+    # the site's build). With this set, the waitlist refuses a request
+    # that has no valid token, so a form without JavaScript gets turnstile_failed.
+    web.turnstile.secretFile = config.sops.secrets."hasala/turnstile_secret".path;
 
     backup = {
       enable = true;

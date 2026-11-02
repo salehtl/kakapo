@@ -83,6 +83,7 @@ in
     secrets."hasala/mailbox_route_key" = lib.mkIf (hasala.google.iosClientId != null) (
       hasalaSecret "mailbox_route_key" [ "hasalad.service" ]
     );
+    secrets."hasala/turnstile_secret" = hasalaSecret "turnstile_secret" [ "hasalad.service" ];
     secrets."hasala/apns_key_p8" = lib.mkIf (hasala.apns.keyId != null) (
       hasalaSecret "apns_key_p8" [ "hasalad.service" ]
     );

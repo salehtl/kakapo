@@ -280,6 +280,21 @@ let
     '';
   };
 
+  # name -> extra nginx directives on the proxied `/` location.
+  locationExtra = {
+    # The console treats a Cloudflare header as a tunnel leak: it refuses the
+    # request and turns /healthz to 503 for 24 hours. nginx sends it none, so a
+    # tailnet peer cannot raise that alarm. It still fires if the console ever
+    # reaches the tunnel, which does not pass through this vhost.
+    hasala = ''
+      proxy_set_header Cf-Connecting-Ip "";
+      proxy_set_header Cf-Ray "";
+      proxy_set_header Cf-Visitor "";
+      proxy_set_header Cf-Ipcountry "";
+      proxy_set_header Cdn-Loop "";
+    '';
+  };
+
   # A vhost's server-level config: on a gated name, untaggedDeny first (ahead
   # of any allow), then its serverExtra.
   serverConfig =
@@ -301,7 +316,7 @@ let
     // extra;
 
   proxyVhost =
-    upstream:
+    name: upstream:
     vhost {
       locations."/" = {
         proxyPass = upstream;
@@ -311,7 +326,8 @@ let
         extraConfig = ''
           proxy_set_header Tailscale-User-Login "";
           proxy_set_header Tailscale-User-Name "";
-        '';
+        ''
+        + (locationExtra.${name} or "");
       };
     };
 
@@ -349,12 +365,12 @@ let
   // lib.mapAttrs' (
     name: port:
     lib.nameValuePair "${name}.${zone}" (
-      proxyVhost "http://127.0.0.1:${toString port}" // { extraConfig = serverConfig name; }
+      proxyVhost name "http://127.0.0.1:${toString port}" // { extraConfig = serverConfig name; }
     )
   ) (proxied // tailnetOnly)
   // lib.mapAttrs' (
     name: url:
-    lib.nameValuePair "${name}.${zone}" (proxyVhost url // { extraConfig = serverConfig name; })
+    lib.nameValuePair "${name}.${zone}" (proxyVhost name url // { extraConfig = serverConfig name; })
   ) lanUpstreams;
 
   names = lib.attrNames vhosts;

@@ -72,6 +72,10 @@
       "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAIN0xPWnKwUvjBNhRRyhuXcgdsCwl78vxow4N2EB7SX2IAAAACnNzaDprYWthcG8= saleh kakapo-yubikey"
       # Second YubiKey (2026-10-18), kept apart from the first as a backup.
       "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAIM3dCHcJciaFpvyZgtrpx9aB8NeJCvOvf4GwDTjINJvZAAAAEXNzaDprYWthcG8tYmFja3Vw saleh kakapo-yubikey-2"
+      # Termius on Saleh's iPhone, unlocked with Face ID (2026-11-02). A plain
+      # ECDSA key: unlike sk-ssh-ed25519, sshd cannot verify it is hardware-bound,
+      # so that rests on Termius keeping it in the Secure Enclave.
+      "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBAdVipe7zOFf/e2aYjE/L5CUi0j7ppNFGZlgsMuZ+bFYmtaMOOihzR6mnbYXVYIwI1gnHOul9ze6haQqUtI8Vws= saleh kakapo-iphone-termius"
     ];
   };
   users.users.humaid = {

@@ -108,6 +108,16 @@
   # project's .direnv/ exists, so deleting the project frees its tools.
   programs.direnv.enable = true;
 
+  # For Termius on the phone, so a session survives network changes. The login
+  # is still sshd's. No firewall opening: mosh is only used over the tailnet, and
+  # tailscaled's ts-input chain accepts tailscale0 ahead of nixos-fw. Termius
+  # starts `mosh-server new -s`, which binds the address the SSH login came in on.
+  programs.mosh = {
+    enable = true;
+    openFirewall = false;
+    withUtempter = false;
+  };
+
   environment.systemPackages = [
     pkgs.unstable.claude-code
     pkgs.unstable.herdr

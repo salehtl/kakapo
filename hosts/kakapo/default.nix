@@ -72,6 +72,9 @@
       "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAIN0xPWnKwUvjBNhRRyhuXcgdsCwl78vxow4N2EB7SX2IAAAACnNzaDprYWthcG8= saleh kakapo-yubikey"
       # Second YubiKey (2026-10-18), kept apart from the first as a backup.
       "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAIM3dCHcJciaFpvyZgtrpx9aB8NeJCvOvf4GwDTjINJvZAAAAEXNzaDprYWthcG8tYmFja3Vw saleh kakapo-yubikey-2"
+      # A YubiKey used from Termius on Saleh's iPhone (2026-11-02). Termius makes
+      # its own FIDO2 key, so this is separate from the two keys above.
+      "sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20AAAAIbmlzdHAyNTYAAABBBKPG9xjjNKWrRf/THvkJEmPlDD4NueoP3iN/L4Sf6Jw7T04HHJUXEyd3PcR0G2Mmy87Jl4QNoM4fF7xEmUWw6qoAAAALdGVybWl1cy5jb20= saleh kakapo-iphone-yubikey"
     ];
   };
   users.users.humaid = {

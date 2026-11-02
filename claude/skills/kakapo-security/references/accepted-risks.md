@@ -13,7 +13,7 @@ item: if the repo no longer says it, it is no longer accepted.
 | sshd on `0.0.0.0:22` and `[::]:22`, port 22 open on every interface | LAN fallback when Tailscale is down. Never recommend narrowing it to `tailscale0`. |
 | AdGuard `*:53` tcp+udp | Firewall-scoped to the LAN NIC and `tailscale0`, plus `dns.allowed_clients` and `ratelimit` (assertions in `modules/services/adguard.nix`). |
 | AdGuard UI on `adguard.salehtl.com` with no login | Saleh's choice, 2026-10-05. |
-| `security.sudo.wheelNeedsPassword = false`; sudoers `%wheel ... NOPASSWD:SETENV: ALL` | Users have no passwords; the SSH key (YubiKey, `sk-ssh-ed25519`) is the only factor. |
+| `security.sudo.wheelNeedsPassword = false`; sudoers `%wheel ... NOPASSWD:SETENV: ALL` | Users have no passwords; the SSH key (YubiKey, `sk-ssh-ed25519`, or `sk-ecdsa-sha2-nistp256` for Termius on Saleh's iPhone) is the only factor. |
 | `saleh` and `humaid` in `wheel` and `docker` | Declared in `hosts/kakapo/default.nix`. `docker` is root-equivalent; that is known. A *third* member is a finding. |
 | `INPUT` policy `ACCEPT` | NixOS normal: protection is the `-j nixos-fw` jump, which ends in `nixos-fw-log-refuse`. Missing jump = finding. |
 | `ts-input` accepts all of `tailscale0` before `nixos-fw` | tailscaled installs it. It means interface scoping protects the LAN only; on the tailnet, loopback binding is the control (tailnet policy is allow-all). Not a finding by itself, but it is why any wildcard bind is tailnet-exposed. |

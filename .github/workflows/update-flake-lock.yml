@@ -15,7 +15,9 @@ on:
 jobs:
   lockfile:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # nook's CUDA packages are not in cache.nixos.org, so a clean runner builds
+    # them for the baseline (about 40 min) and again for the new lock.
+    timeout-minutes: 120
     permissions:
       id-token: write # FlakeHub Cache authenticates with OIDC
       contents: read

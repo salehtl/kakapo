@@ -118,6 +118,7 @@ Action: Reboot kakapo when the house can lose DNS for 2 minutes.
 - Deploying `master`, setting the boot default, merging on Saleh's word:
   `kakapo-deploy`.
 - Stale nixpkgs or a failing `flake.lock` bump: `kakapo-update`.
+- Disk use, leftovers of projects, caches and chores: `kakapo-housekeeping`.
 - DNS down, a service down, or anything user-visible right now:
   `kakapo-incident`.
 - Open ports, exposure, secrets, tailnet identity: `kakapo-security`.

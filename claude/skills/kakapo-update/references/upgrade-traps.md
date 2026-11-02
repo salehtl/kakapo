@@ -234,5 +234,4 @@ Not a weekly bump: it changes `nixpkgs.url` in `flake.nix`, so treat it as a
 change (kakapo-change) and use this file for the review. Read
 `rl-2611.section.md` in full. Required at the same time: drop the Immich
 module swap and `pkgs.unstable.immich` (`flake.nix`,
-`modules/services/immich.nix`), review `modules/ca-trust.nix`'s blacklist,
-and leave `system.stateVersion` at `25.11`.
+`modules/services/immich.nix`), and leave `system.stateVersion` at `25.11`.

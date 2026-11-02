@@ -22,7 +22,6 @@ item: if the repo no longer says it, it is no longer accepted.
 | kakapo is a Tailscale exit node and advertises `10.0.0.215/32`; IP forwarding on, `FORWARD` policy `ACCEPT` | The exit node exists for `modules/services/zapret.nix` (`--advertise-exit-node` follows `services.zapret.enable` in `modules/base.nix`); the route is the away path to the LAN proxy (`lan-proxy.nix`). Residual risk: with the allow-all tailnet policy, an exit-node client can reach the whole house LAN. Re-check the exact routes each audit; any extra route is a finding. |
 | Hasala public tunnel (`cloudflared-hasala`, `api.hasala.app`) | Approved 2026-10-11, path allowlist asserted by the hasala module. Any *other* public ingress is a finding. |
 | `immich` from nixpkgs-unstable | 26.05's Immich is marked insecure; unstable is the fix, not the risk. |
-| CA blacklist in `modules/ca-trust.nix` | Stopgap until nss-cacert >= 3.131.1. Report as Info once a lock bump brings the fix (the module says to remove it then). |
 
 ## Known tailnet devices (on 2026-10-22)
 

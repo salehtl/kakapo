@@ -41,15 +41,6 @@
     # Deliberately NO `follows`: the host runs exactly the closure hasala's CI
     # built and tested (its own nixos-26.05 lock, Go 1.27 from nixos-unstable).
     hasala.url = "github:salehtl/hasala/d3d8fe890707bf5b606886526af3d292773ac651";
-    # nook: the reading-room planner and the GPU trainer for nook-scan iPhone
-    # room scans (modules/services/nook.nix), for its NixOS module. Pinned to a
-    # commit like hasala, so the weekly lock bump never deploys unreleased nook
-    # work; release by changing the rev. Follows our nixpkgs: nook pins nothing
-    # of its own, and sharing the host's keeps the closure small.
-    nook = {
-      url = "github:salehtl/nook/bb2919de272bd33ac9aa1f40289f71ecdc10cc8b";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
   outputs =
@@ -61,7 +52,6 @@
       sops-nix,
       ledger,
       hasala,
-      nook,
       ...
     }:
     let
@@ -107,7 +97,6 @@
           sops-nix.nixosModules.sops
           ledger.nixosModules.default
           hasala.nixosModules.default
-          nook.nixosModules.default
           {
             # Immich 3 with the module written for it. 26.05 ships Immich 2.7.5,
             # marked insecure (two CVEs, 2.x is unmaintained); Immich 3 lands in

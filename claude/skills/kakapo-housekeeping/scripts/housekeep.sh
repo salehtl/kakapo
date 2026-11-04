@@ -417,7 +417,7 @@ scan_var_lib() {
   local j
   j=$(journalctl --disk-usage 2>/dev/null | grep -oE '[0-9.]+[KMGT]' | head -1)
   [ -n "$j" ] && info journal "the journal uses $j; journald caps it, so vacuum is not needed"
-  info state "$(sudo -n du -xsh /var/lib/docker /var/lib/nook /var/lib/private /var/cache/immich 2>/dev/null | awk '{printf "%s %s; ", $2, $1}') (service state: never housekeeping)"
+  info state "$(sudo -n du -xsh /var/lib/docker /var/lib/private /var/cache/immich 2>/dev/null | awk '{printf "%s %s; ", $2, $1}') (service state: never housekeeping)"
 }
 
 scan_drift() {

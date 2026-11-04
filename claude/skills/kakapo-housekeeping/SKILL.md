@@ -87,7 +87,7 @@ already emptied file by file. Check it, tell Saleh, and name it for `--remove
 --discard-git` if he agrees.
 
 Before you suggest an `ASK` item, check what uses it. A stray can be a live input:
-`~/nook-gpu.lock` is empty, but nook's eval scripts lock on it. Search for the name
+an empty lock file can be what a project's scripts lock on. Search for the name
 (`rg -l <name> ~/src`), and say what you found.
 
 - **`var-lib`** (`/var/lib/*.pre-*`): a copy from before a migration, so real data.

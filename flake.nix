@@ -41,6 +41,12 @@
     # Deliberately NO `follows`: the host runs exactly the closure hasala's CI
     # built and tested (its own nixos-26.05 lock, Go 1.27 from nixos-unstable).
     hasala.url = "github:salehtl/hasala/d3d8fe890707bf5b606886526af3d292773ac651";
+    # midstudy: the furniture planner on a room photo, with MoGe-2 on the GPU
+    # (modules/services/midstudy.nix), for its NixOS module. Pinned to a
+    # commit like hasala; release by changing the rev. Deliberately NO
+    # `follows`: its CUDA torch comes from its own pinned nixpkgs, so a
+    # nixpkgs bump here never rebuilds the CUDA libraries (hours).
+    midstudy.url = "github:salehtl/midstudy/95c35ea55311c38cab9160731672375360d63ab4";
   };
 
   outputs =
@@ -52,6 +58,7 @@
       sops-nix,
       ledger,
       hasala,
+      midstudy,
       ...
     }:
     let
@@ -97,6 +104,7 @@
           sops-nix.nixosModules.sops
           ledger.nixosModules.default
           hasala.nixosModules.default
+          midstudy.nixosModules.default
           {
             # Immich 3 with the module written for it. 26.05 ships Immich 2.7.5,
             # marked insecure (two CVEs, 2.x is unmaintained); Immich 3 lands in

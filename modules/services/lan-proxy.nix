@@ -176,6 +176,12 @@ let
     # and left to kakapo's own services on loopback (modules/services/ntfy.nix).
     # On the house network so alerts arrive while the phone's Tailscale is off.
     ntfy = 2586;
+    # midstudy: the furniture planner (modules/services/midstudy.nix). No
+    # login, by Saleh's choice (2026-11-05): on the house network as well as
+    # the tailnet, so anyone on the home Wi-Fi can open the uploaded room
+    # photos and spend up to its daily fal cap. Guest stays out. Move it to
+    # `tailnetOnly` to gate it.
+    midstudy = config.services.midstudy.webPort;
   };
 
   # name -> another machine on the LAN. Its traffic leaves kakapo from
@@ -254,6 +260,14 @@ let
     # everyone else gets 403 from nginx. serverConfig puts untaggedDeny ahead
     # of these allows.
     hasala = lib.concatMapStrings (ip: "allow ${ip};\n") consoleAllow + "deny all;\n";
+    # Furniture models (up to 200 MB) arrive in one request. Buffered, so
+    # midstudy gets the Content-Length it requires; a render waits for fal
+    # (up to 300 s) plus keep-room alignment (up to 180 s).
+    midstudy = ''
+      client_max_body_size 200M;
+      proxy_read_timeout 600s;
+      proxy_send_timeout 600s;
+    '';
     # Phone backups upload whole videos in one request; stream them straight
     # through instead of buffering to disk, and allow slow links.
     photos = ''

@@ -52,6 +52,11 @@
     settings = {
       PermitRootLogin = "no";
       PasswordAuthentication = false;
+      # keyboard-interactive goes through PAM's password prompt, a second
+      # password path next to PasswordAuthentication. Off, so sshd offers
+      # publickey only and SSH stays key-only even if an account ever gets a
+      # password.
+      KbdInteractiveAuthentication = false;
       # Nothing here needs unix-socket forwarding (ssh -L/-R to a socket path);
       # it is the class of forwarding the Tailworm report abuses.
       AllowStreamLocalForwarding = "no";

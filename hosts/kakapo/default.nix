@@ -146,6 +146,12 @@
       message = "users.users.saleh.openssh.authorizedKeys.keys is empty — SSH is key-only with no password auth, so this would lock you out of the host permanently.";
     }
     {
+      assertion =
+        !config.services.openssh.settings.PasswordAuthentication
+        && !config.services.openssh.settings.KbdInteractiveAuthentication;
+      message = "services.openssh.settings.PasswordAuthentication and KbdInteractiveAuthentication must both be false — SSH is key-only, and keyboard-interactive is a password prompt through PAM.";
+    }
+    {
       assertion = config.networking.firewall.enable;
       message = "networking.firewall.enable must be true — kakapo exposes port 22 and serves apps over the tailnet only; disabling the firewall would silently expose every other listening service.";
     }

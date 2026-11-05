@@ -179,7 +179,7 @@ let
     # midstudy: the furniture planner (modules/services/midstudy.nix). No
     # login, by Saleh's choice (2026-11-05): on the house network as well as
     # the tailnet, so anyone on the home Wi-Fi can open the uploaded room
-    # photos and spend up to its daily fal cap. Guest stays out. Move it to
+    # photos and make paid fal calls with no practical cap. Guest stays out. Move it to
     # `tailnetOnly` to gate it.
     midstudy = config.services.midstudy.webPort;
   };

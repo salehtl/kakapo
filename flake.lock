@@ -40,6 +40,25 @@
         "type": "github"
       }
     },
+    "midstudy": {
+      "inputs": {
+        "nixpkgs": "nixpkgs_2"
+      },
+      "locked": {
+        "lastModified": 1793855517,
+        "narHash": "sha256-DIeifld4NfcMp5l//YbiiKS9x6gG1JURY9+5mdvxzeY=",
+        "owner": "salehtl",
+        "repo": "midstudy",
+        "rev": "95c35ea55311c38cab9160731672375360d63ab4",
+        "type": "github"
+      },
+      "original": {
+        "owner": "salehtl",
+        "repo": "midstudy",
+        "rev": "95c35ea55311c38cab9160731672375360d63ab4",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1791426274,
@@ -90,6 +109,22 @@
     },
     "nixpkgs_2": {
       "locked": {
+        "lastModified": 1792898606,
+        "narHash": "sha256-Mg3rRjsbMqhSMxop5PYMXos8SwAjejrxSgVThTvP9eg=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "1f607aa79b6356ed45d3cd3c8079c196e79efa2c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "ref": "nixos-26.05",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs_3": {
+      "locked": {
         "lastModified": 1793526781,
         "narHash": "sha256-2Cxxgpz1+cRgKZJFi12/9LG3aIBN66f2RvFs34Oj/A0=",
         "owner": "nixos",
@@ -108,7 +143,8 @@
       "inputs": {
         "hasala": "hasala",
         "ledger": "ledger",
-        "nixpkgs": "nixpkgs_2",
+        "midstudy": "midstudy",
+        "nixpkgs": "nixpkgs_3",
         "nixpkgs-unstable": "nixpkgs-unstable_2",
         "sops-nix": "sops-nix",
         "treefmt-nix": "treefmt-nix"

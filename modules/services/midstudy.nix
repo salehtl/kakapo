@@ -2,9 +2,11 @@
 # without the room scan; github.com/salehtl/midstudy, the module is
 # nix/module.nix there, the hosting notes docs/HANDOFF.md).
 #
-# Unit:    midstudy (the web app, 127.0.0.1:8780). It runs midstudy-calib
-#          (MoGe-2 on the RTX 2060, about 10 s per photo, one at a time) for
-#          each uploaded photo and midstudy-add for each library item.
+# Unit:    midstudy (the web app, 127.0.0.1:8780; v2 since 2026-11-06: Node 22
+#          with Rust/wasm kernels, calibration still Python). On the first
+#          calibration it starts `midstudy-calib serve`, a warm worker that
+#          keeps MoGe-2 on the RTX 2060 (about 2.7 GB) until 10 idle minutes
+#          pass; jobs run one at a time. midstudy-add runs per library item.
 # State:   /var/lib/midstudy (scenes, library, layouts, renders). Each scene
 #          keeps the upload as given (`source.*`, EXIF and location included);
 #          it is never served. Uploaded photos show the inside of the house.

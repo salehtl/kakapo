@@ -42,20 +42,21 @@
     },
     "midstudy": {
       "inputs": {
-        "nixpkgs": "nixpkgs_2"
+        "nixpkgs": "nixpkgs_2",
+        "rust-overlay": "rust-overlay"
       },
       "locked": {
-        "lastModified": 1793904660,
-        "narHash": "sha256-x7JK6EUF7sA802Ot1A0dn9rU0LoQ1UHmCi+0YJVfxw0=",
+        "lastModified": 1793953299,
+        "narHash": "sha256-oUlUB9a7jukRHAomrTZThJBfQ/trfbkEFSm6Axc4qkA=",
         "owner": "salehtl",
         "repo": "midstudy",
-        "rev": "fc82c5c910cf428b4740abc685ecf3107be242b3",
+        "rev": "21cfc4bd43f4d5c7cb8cd99391ff270442b892f9",
         "type": "github"
       },
       "original": {
         "owner": "salehtl",
         "repo": "midstudy",
-        "rev": "fc82c5c910cf428b4740abc685ecf3107be242b3",
+        "rev": "21cfc4bd43f4d5c7cb8cd99391ff270442b892f9",
         "type": "github"
       }
     },
@@ -148,6 +149,27 @@
         "nixpkgs-unstable": "nixpkgs-unstable_2",
         "sops-nix": "sops-nix",
         "treefmt-nix": "treefmt-nix"
+      }
+    },
+    "rust-overlay": {
+      "inputs": {
+        "nixpkgs": [
+          "midstudy",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1793870170,
+        "narHash": "sha256-0psEeQjs1g9oWQ6eVVGlCom+X3/uHyr6jSMyHVU57u8=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "19e0e6c951a7a8a7d3232c64e58d26b89df44c60",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "type": "github"
       }
     },
     "sops-nix": {

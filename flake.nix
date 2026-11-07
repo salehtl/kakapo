@@ -46,7 +46,7 @@
     # commit like hasala; release by changing the rev. Deliberately NO
     # `follows`: its CUDA torch comes from its own pinned nixpkgs, so a
     # nixpkgs bump here never rebuilds the CUDA libraries (hours).
-    midstudy.url = "github:salehtl/midstudy/21c7efca71bdaf511a4862b3d98faa00fdf19c1d";
+    midstudy.url = "github:salehtl/midstudy/ec889af6ff0501df22896ef2fdabe58ba572dad3";
   };
 
   outputs =

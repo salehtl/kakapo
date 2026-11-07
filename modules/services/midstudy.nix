@@ -21,34 +21,14 @@
 #          per UTC day, so only the fal account limits spend. Until secrets/midstudy.yaml exists, midstudy runs
 #          without a key: those calls answer "FAL_KEY not set", and photo
 #          calibration and GLB/OBJ furniture still work.
-{
-  config,
-  lib,
-  options,
-  pkgs,
-  ...
-}:
+{ config, lib, ... }:
 let
   hasFalKey = builtins.pathExists ../../secrets/midstudy.yaml;
-  cfg = config.services.midstudy;
-  # midstudy's module (21c7efc) passes every data dir but rooms (multi-photo
-  # rooms, contract §4.9), so the server would put them in its own read-only
-  # store tree. The server takes the last of a repeated flag, so this one wins.
-  # Drop the wrapper once nix/module.nix passes --rooms-dir itself.
-  upstream = options.services.midstudy.package.default;
-  # The module reads midstudy-calib and midstudy-add from the package's
-  # passthru, so the wrapper carries upstream's.
-  withRoomsDir =
-    (pkgs.writeShellScriptBin "midstudy-web" ''
-      exec ${lib.getExe upstream} "$@" --rooms-dir ${cfg.dataDir}/rooms
-    '').overrideAttrs
-      { inherit (upstream) passthru; };
 in
 {
   services.midstudy = {
     enable = true;
     webPort = 8780;
-    package = withRoomsDir;
     # The LAN proxy's name for the app; anything else is refused (DNS
     # rebinding guard).
     allowedHosts = [ "midstudy.salehtl.com" ];

@@ -71,7 +71,7 @@ CI runs **on kakapo**, not on GitHub, since 2026-10-27 (`check.yml` was removed:
 
 Composition is layered; each layer only knows about the one below it:
 
-- `flake.nix` → wires `nixpkgs` (channel `nixos-26.05`), `sops-nix`, `ledger` (`github:salehtl/ledger`, for its NixOS module), `hasala` (`github:salehtl/hasala`, pinned to a commit, for its NixOS module; no `follows`) and `treefmt-nix` into `nixosConfigurations.kakapo`, plus exposes `formatter` + `checks.formatting` per system. Its overlay adds `pkgs.unstable`, the nixpkgs-unstable package set used for claude-code, herdr, Immich and Tailscale.
+- `flake.nix` → wires `nixpkgs` (channel `nixos-26.05`), `sops-nix`, `ledger` (`github:salehtl/ledger`, pinned to a commit since 2026-11-10, for its NixOS module), `hasala` (`github:salehtl/hasala`, pinned to a commit, for its NixOS module; no `follows`) and `treefmt-nix` into `nixosConfigurations.kakapo`, plus exposes `formatter` + `checks.formatting` per system. Its overlay adds `pkgs.unstable`, the nixpkgs-unstable package set used for claude-code, herdr, Immich and Tailscale.
 - `treefmt.nix` → formatter config: `nixfmt-rfc-style` + `deadnix` + `statix`.
 - `hosts/kakapo/default.nix` → **host identity + invariants**: hostname, bootloader (systemd-boot + EFI), declared users (`saleh`, `humaid`) + their SSH keys, `users.mutableUsers = false`, `security.sudo.wheelNeedsPassword = false`, docker, `claude-code`, unfree packages allowed by name via `allowUnfreePredicate` (the NVIDIA driver; claude-code comes from `pkgs.unstable`, whose own predicate is in `flake.nix`), the global firewall port list (`allowedTCPPorts = [ 22 ]`; the `53` and `443` exceptions are interface-scoped in their own modules), and four eval-time `assertions` guarding hostname/`saleh`-SSH-key-presence/firewall/Tailscale SSH off. Imports `hardware.nix` + the shared modules.
 - `hosts/kakapo/hardware.nix` → disks (UUID-pinned ext4 root + vfat /boot + /mnt/media), kernel modules (`kvm-amd`, `igb` NIC), AMD microcode, and the GPU: a GeForce RTX 2060 (6 GB) on NVIDIA's driver (open kernel modules, `nvidia-persistenced`, no X). The host only carries the driver (`nvidia-smi` included); CUDA libraries belong in each project's flake with its own `allowUnfree`/`cudaSupport`. Don't add host packages that pull in the CUDA toolkit (e.g. `nvtopPackages.nvidia`). This is the file to touch for storage/hardware changes.
@@ -157,10 +157,11 @@ It must print `firewall-start exit 0`, and `-A INPUT -j nixos-fw` under both `-S
 
 ### Deploy a new ledger version
 
-kakapo runs the ledger commit pinned in `flake.lock`. Before bumping, make sure that commit's `internal/web/dist` was rebuilt and committed (the Nix build embeds it and never runs Node).
+kakapo runs the ledger commit in `flake.nix`'s `ledger.url` (a rev since 2026-11-10, so the weekly lock bump never moves it; before that it followed ledger's `main`). Before bumping, make sure that commit's `internal/web/dist` was rebuilt and committed (the Nix build embeds it and never runs Node).
 
 ```sh
-nix flake update ledger                      # pin salehtl/ledger main
+sed -i 's|github:salehtl/ledger/[0-9a-f]*|github:salehtl/ledger/<full sha>|' flake.nix
+nix flake lock                               # moves ledger only
 nix flake check                              # same as CI
 git commit -am "ledger: bump to <short rev>"   # on a branch; then push it and open a PR (applied at 04:00 after merge)
 ```

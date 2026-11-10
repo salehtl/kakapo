@@ -9,7 +9,8 @@
 #          `tailnetOnly` list (tailscale-nginx-auth, modules/services/lan-proxy.nix).
 #          ledger has no login of its own: that gate is its only access control.
 #          Never the unauthenticated `proxied` list, never public.
-# Deploy:  `nix flake update ledger`, commit, push; the 04:00 upgrade applies it.
+# Deploy:  change the ledger rev in flake.nix in a PR (CLAUDE.md, "Deploy a new
+#          ledger version"); the 04:00 upgrade applies it after the merge.
 { config, ... }:
 let
   port = 8090;

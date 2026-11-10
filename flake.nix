@@ -26,8 +26,13 @@
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # Pinned to a commit, like hasala and midstudy (2026-11-10). As a bare
+    # `github:salehtl/ledger` the weekly lock bump moved it to whatever was
+    # on ledger's `main`, NixOS module included (evaluated here as root), with
+    # no check that the commit's internal/web/dist had been rebuilt. Release
+    # by changing the rev in a PR (CLAUDE.md, "Deploy a new ledger version").
     ledger = {
-      url = "github:salehtl/ledger";
+      url = "github:salehtl/ledger/f32b62367e290190f1909f21687364a5a0330b68";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     # Hasala's QA backend (modules/services/hasala.nix), for its NixOS module.

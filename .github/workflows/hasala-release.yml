@@ -2,18 +2,21 @@ name: hasala-release
 
 # Releases hasala to QA without anyone editing flake.nix. Every hour it looks
 # for a newer hasala `main` commit that changes what kakapo runs (server/,
-# infra/qa/nix/, flake.nix, flake.lock; not their tests), and whose server
-# checks passed. It
+# infra/qa/nix/, infra/qa/db/, flake.nix, flake.lock; not their tests), and
+# whose server checks passed. It
 # validates the bump the same way update-flake-lock does (flake check +
 # kakapo build, then reports `check` and `build` itself), and opens or
 # updates the `hasala-release` PR.
 #
 # Auto-merge (approved by Saleh 2026-10-20, option "b"): the PR merges itself
 # when the release changes no migration (server/internal/pg/migrations/) and
-# not the NixOS module (infra/qa/nix/), which is evaluated as part of this
-# host's configuration and so can change anything on it as root. A release
-# that changes either waits for Saleh: auto-merge is turned off on it and it
-# gets the `needs-review` label. Either
+# not the NixOS module, which is evaluated as part of this host's
+# configuration and so can change anything on it as root. The module is
+# infra/qa/nix/, plus the two things outside it that decide what it is:
+# hasala's flake.nix (it defines nixosModules.default, so it can point at any
+# file) and infra/qa/db/ (module.nix reads ../db/setup.sql, run as the
+# database superuser). A release that changes any of these waits for Saleh:
+# auto-merge is turned off on it and it gets the `needs-review` label. Either
 # way, autoUpgrade deploys master at 04:00; hasala's `nixos-vm` job (it boots
 # this same module) is the test before that, not guarded-test.sh.
 on:
@@ -27,6 +30,13 @@ concurrency:
 
 # Same split as update-flake-lock: third-party actions run in `plan` with a
 # read-only token; only `pull-request` can write, and it runs git and gh only.
+#
+# Both jobs work on ONE master commit: `plan` records the commit it checked
+# out and built on (`base`), and `pull-request` checks out that commit, not
+# `master` again. plan takes 30-40 minutes; if `pull-request` took the newer
+# master instead, the built flake.nix and flake.lock would overwrite whatever
+# merged in between (a midstudy rev bump, say), and the PR would revert it
+# with green `check`/`build` on a tree nobody built, then merge itself.
 jobs:
   plan:
     runs-on: ubuntu-latest
@@ -37,6 +47,7 @@ jobs:
       pull-requests: read
     outputs:
       release: ${{ steps.pick.outputs.release }}
+      base: ${{ steps.pick.outputs.base }}
       rev: ${{ steps.pick.outputs.rev }}
       review: ${{ steps.pick.outputs.review }}
     steps:
@@ -62,7 +73,7 @@ jobs:
           fi
           # What kakapo runs: hasalad (server/, minus the test-only oracle),
           # the module (infra/qa/nix/, minus its tests) and the flake.
-          paths=(server ':!server/oracle' infra/qa/nix ':!infra/qa/nix/tests' flake.nix flake.lock)
+          paths=(server ':!server/oracle' infra/qa/nix ':!infra/qa/nix/tests' infra/qa/db flake.nix flake.lock)
           # The newest main commit after the pin that changes any of it.
           rev=$(git log -1 --format=%H "$pinned..origin/main" -- "${paths[@]}")
           if [ -z "$rev" ]; then
@@ -91,9 +102,10 @@ jobs:
             fi
           fi
           cd "$RUNNER_TEMP/hasala"
-          review=$(git diff --name-only "$pinned" "$rev" -- server/internal/pg/migrations/ infra/qa/nix ':!infra/qa/nix/tests')
+          review=$(git diff --name-only "$pinned" "$rev" -- server/internal/pg/migrations/ infra/qa/nix ':!infra/qa/nix/tests' infra/qa/db flake.nix)
           {
             echo "release=true"
+            echo "base=$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)"
             echo "rev=$rev"
             if [ -n "$review" ]; then echo "review=true"; else echo "review=false"; fi
           } >> "$GITHUB_OUTPUT"
@@ -104,11 +116,11 @@ jobs:
             echo "hasala's \`gate\`, \`vuln\`, \`secrets\` and \`nixos-vm\` passed on \`${rev:0:7}\`. Validated by the run that opened this PR: \`nix flake check\` passed and \`nixosConfigurations.kakapo\` built (the \`check\` and \`build\` statuses link to it)."
             echo
             if [ -n "$review" ]; then
-              echo "**This release changes migrations or the NixOS module, so auto-merge is off.** Read these, then merge by hand:"
+              echo "**This release changes migrations, the NixOS module, or what defines it (hasala's \`flake.nix\`, \`infra/qa/db/\`), so auto-merge is off.** Read these, then merge by hand:"
               echo
               echo "$review" | sed 's/^/- `/; s/$/`/'
             else
-              echo "No migration or module changes: auto-merge is on. autoUpgrade deploys it at 04:00 Asia/Dubai."
+              echo "No migration, module, \`flake.nix\` or \`infra/qa/db/\` changes: auto-merge is on. autoUpgrade deploys it at 04:00 Asia/Dubai."
             fi
             echo
             echo "Commits that change what kakapo runs:"
@@ -170,9 +182,10 @@ jobs:
       pull-requests: write
       statuses: write
     steps:
+      # The commit `plan` built on, not `master` as it is now (see the top).
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          ref: master
+          ref: ${{ needs.plan.outputs.base }}
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -195,8 +208,9 @@ jobs:
           git push --force origin hasala-release
 
           # GitHub never runs `check` and `build` on a push made with
-          # GITHUB_TOKEN. The plan job ran both on exactly this tree (master
-          # plus the two files it validated); report that so the PR can merge.
+          # GITHUB_TOKEN. The plan job ran both on exactly this tree (the
+          # master commit it checked out plus the two files it validated);
+          # report that so the PR can merge.
           run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           sha=$(git rev-parse HEAD)
           for ctx in check build; do

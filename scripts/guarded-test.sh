@@ -10,6 +10,10 @@
 #   scripts/guarded-test.sh "$out"
 #   scripts/guarded-test.sh "$out" --replace   # see "Another agent's test" below
 #
+# The nightly upgrade runs this same script, from the running system's store,
+# before it makes master the boot default (modules/guarded-upgrade.nix): a
+# change here judges the *next* upgrade, never the one that brings it in.
+#
 # Exit codes: 0 pass; 1 DNS/LAN path/firewall went down, rolled back; 2
 # already failing, nothing activated; 3 something else replaced the system
 # mid-check; 4 firewall/reload/new failed unit, rolled back; 5 gave up on the
@@ -59,7 +63,10 @@ if [ "$cur" != "$boot" ] && [ "$new" != "$cur" ] && [ "$replace" = 0 ]; then
 fi
 
 prev=$(readlink /run/current-system)
-dig=$(nix build --no-link --print-out-paths 'nixpkgs#dnsutils^dnsutils')/bin/dig
+# The 04:00 upgrade (modules/guarded-upgrade.nix) runs this as root with dig
+# on its PATH; an agent's shell has neither.
+[ "$(id -u)" != 0 ] || sudo() { "$@"; }
+dig=$(command -v dig) || dig=$(nix build --no-link --print-out-paths 'nixpkgs#dnsutils^dnsutils')/bin/dig
 lan=enp4s0 # the LAN NIC (modules/services/adguard.nix, lan-proxy.nix)
 # The query runs over `lo`: kakapo asking its own address never touches the
 # LAN NIC or its interface-scoped firewall rules, so check those too. The

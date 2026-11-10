@@ -23,8 +23,9 @@ else
   echo "ok    nixos-upgrade.service is $state"
 fi
 
-# The timer fires at exactly 04:00 (no randomized delay) and does not take the
-# guarded-test lock, so a test started a few minutes before is replaced mid-watch.
+# The timer fires at exactly 04:00 (no randomized delay). The upgrade takes the
+# guarded-test lock and then replaces whatever test is live, so a test started
+# a few minutes before is gone as soon as its watch ends.
 next=$(systemctl show nixos-upgrade.timer -p NextElapseUSecRealtime --value 2>/dev/null)
 next_s=$(date -d "$next" +%s 2>/dev/null || echo 0)
 now_s=$(date +%s)

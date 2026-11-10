@@ -184,8 +184,14 @@ systemctl status nixos-upgrade.service --no-pager
 journalctl -u nixos-upgrade.service --since -7d --no-pager | grep -iE 'error|fail' | tail -30
 ```
 
-`nixos-upgrade` runs `nixos-rebuild switch --flake github:salehtl/kakapo#kakapo`
-at 04:00 and mails on failure. Sort the failure:
+`nixos-upgrade` runs `kakapo-guarded-upgrade` at 04:00 (`modules/guarded-upgrade.nix`):
+it builds `github:salehtl/kakapo` `master`, activates it through `guarded-test.sh`
+and makes it the boot default only on a pass. It mails on failure, and its exit
+status says which: 1 or 4, `master` was activated, broke DNS, the firewall, a
+reload or a unit, and was rolled back (the journal has the guard's reason; fix
+`master` with a revert PR, or it repeats every night); 2, DNS or the firewall
+was already failing, nothing activated; 5, the guard lock was busy; 7, the
+build failed. Sort a build failure:
 
 - **Fetch/eval failure** (`error: … flake`, `unable to download`): GitHub or
   DNS from kakapo (it uses `1.1.1.2`, not AdGuard), or an eval error on

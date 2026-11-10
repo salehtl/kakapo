@@ -74,8 +74,8 @@ chmod +x <scratch>/guarded-test.sh                           # the guard you wil
 - `nixos-upgrade.service` is a oneshot: it shows `activating` while it runs, never
   `active`. Wait until it is `inactive` or `failed`.
 - **If the next 04:00 run is less than 30 minutes away, do not merge.** Tell Saleh
-  the time left. The 04:00 run would `nixos-rebuild switch` the new `master` with no
-  DNS watch and make it the boot default. Merge after the upgrade finishes, or when
+  the time left. The 04:00 run activates the new `master` itself (through `guarded-test.sh`
+  since 2026-11-10, but without deploy.sh's health checks or anyone watching). Merge after the upgrade finishes, or when
   he says to merge anyway.
 - `$prev_boot` is the last deployed `master` (a profile generation, so GC-rooted).
   Roll back to it, never to `$prev_run`. If `$prev_run` differs, a test is live.

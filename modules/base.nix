@@ -114,6 +114,9 @@
 
   networking.firewall.enable = true;
 
+  # What the unit runs is replaced in modules/guarded-upgrade.nix: master is
+  # activated through scripts/guarded-test.sh and becomes the boot default
+  # only if the house's DNS, the firewall and the units survived it.
   system.autoUpgrade = {
     enable = true;
     allowReboot = false;
@@ -125,8 +128,8 @@
     # mid-activation, since the timer was already running and Persistent=
     # only matters when a timer starts, and it froze the timer's stamp, so
     # booting an older generation would have upgraded it straight back.
-    # The misfire is unexplained; scripts/guarded-test.sh exits 3 when it
-    # switches the host under a test.
+    # The misfire is unexplained. Since the upgrade takes the guarded-test
+    # lock it can no longer switch the host under a running test.
   };
 
   # Age-based generation pruning with a floor. `nix-collect-garbage

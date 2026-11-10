@@ -72,9 +72,10 @@ in
 
     ## How changes actually deploy
 
-    `system.autoUpgrade` runs `nixos-rebuild switch` against
-    `github:salehtl/kakapo#${host}` **daily at 04:00**. Whatever is on `master`
-    then is what this host runs.
+    `nixos-upgrade.service` builds `github:salehtl/kakapo#${host}` **daily at
+    04:00**, activates it through `scripts/guarded-test.sh` and makes it the
+    boot default if that passes (rolled back, with a mail, if not). Whatever
+    is on `master` then is what this host runs.
 
     **Every change is a pull request; nobody pushes to `master`.** Several
     agents may be working on this flake and this host at once. A GitHub

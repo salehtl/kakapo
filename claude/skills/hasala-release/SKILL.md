@@ -55,13 +55,15 @@ Sibling skills do the general parts. Do not repeat them from memory; open them:
 | 1 | not on main, or before the pin | stop and say why |
 
 Only `server/` (not `server/oracle/`), `infra/qa/nix/` (not its tests),
-`flake.nix` and `flake.lock` change what kakapo runs. If Saleh names a commit
+`infra/qa/db/`, `flake.nix` and `flake.lock` change what kakapo runs. If Saleh names a commit
 that changes none of them, say so: releasing it changes nothing on the host.
 
 ## 2. Read the release
 
 `review true` means the release changes a migration
-(`server/internal/pg/migrations/`) or the NixOS module (`infra/qa/nix/`).
+(`server/internal/pg/migrations/`), the NixOS module (`infra/qa/nix/`), or
+what defines the module: hasala's `flake.nix` (it sets
+`nixosModules.default`) and `infra/qa/db/` (the module reads `setup.sql`).
 The module runs as root on the house DNS server; a migration changes real
 tester data. For each `file` line, read the diff in hasala:
 

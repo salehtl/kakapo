@@ -9,8 +9,9 @@
 #   running  the hasalad store path the host runs now
 #   target   the full sha to release ("none" if nothing to release)
 #   checks   gate/vuln/secrets/nixos-vm conclusions on target
-#   review   true when target changes a migration or the module (no auto-merge)
-#   file     each migration/module file that triggers review (0..n lines)
+#   review   true when target changes a migration, the module, or what defines
+#            the module (hasala's flake.nix, infra/qa/db/) (no auto-merge)
+#   file     each file that triggers review (0..n lines)
 #   commit   each commit between pinned and target that changes what kakapo runs
 #   pr       the open hasala-release PR: "<number> <pinned rev in it>" or "none"
 #   pr_other each other open kakapo PR that edits the hasala pin (0..n lines)
@@ -21,7 +22,7 @@
 set -euo pipefail
 kakapo=salehtl/kakapo
 hasala=salehtl/hasala
-paths=(server ':!server/oracle' infra/qa/nix ':!infra/qa/nix/tests' flake.nix flake.lock)
+paths=(server ':!server/oracle' infra/qa/nix ':!infra/qa/nix/tests' infra/qa/db flake.nix flake.lock)
 
 pinned=$(gh api "repos/$kakapo/contents/flake.nix" --jq .content | base64 -d |
   grep -oP 'github:salehtl/hasala/\K[0-9a-f]{40}')
@@ -51,7 +52,7 @@ checks=$(gh api "repos/$hasala/commits/$target/check-runs?per_page=100" \
   --jq '[.check_runs[] | select(.name | test("^(gate|vuln|secrets|nixos-vm)$")) | "\(.name)=\(.conclusion // .status)"] | unique | join(" ")')
 printf 'checks\t%s\n' "${checks:-none}"
 
-review=$(git diff --name-only "$pinned" "$target" -- server/internal/pg/migrations/ infra/qa/nix ':!infra/qa/nix/tests')
+review=$(git diff --name-only "$pinned" "$target" -- server/internal/pg/migrations/ infra/qa/nix ':!infra/qa/nix/tests' infra/qa/db flake.nix)
 if [ -n "$review" ]; then printf 'review\ttrue\n'; else printf 'review\tfalse\n'; fi
 while read -r f; do [ -n "$f" ] && printf 'file\t%s\n' "$f"; done <<<"$review"
 git log --format='commit%x09%h %s' "$pinned..$target" -- "${paths[@]}"

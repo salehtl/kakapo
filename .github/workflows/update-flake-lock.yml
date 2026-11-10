@@ -130,9 +130,11 @@ jobs:
           # GitHub never runs them on this PR (see above). The lockfile job
           # ran both on exactly this commit's tree: both jobs check out the
           # same github.sha, and the only change on top is the files it
-          # validated. Report that here so the PR can merge. If master has
-          # moved since, the ruleset requires updating the branch first, and
-          # that push (by a person) runs the real CI.
+          # validated. Report that here so the PR can merge. The ruleset
+          # does not require the branch to be up to date (2026-10-17), and
+          # GitHub runs no CI on a later push (CI is ci-local.sh on kakapo,
+          # 2026-10-27): a new commit on this branch has no statuses until
+          # someone runs `ci-local.sh <pr>` on it.
           run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           sha=$(git rev-parse HEAD)
           for ctx in check build; do
@@ -149,8 +151,9 @@ jobs:
           and `nixosConfigurations.kakapo` built to a `toplevel`. GitHub does
           not run `check` on this PR — PRs opened with `GITHUB_TOKEN` do not
           trigger workflows — so those steps, in the run linked from the
-          `check` and `build` statuses, are the gate. If `master` has moved,
-          press "Update branch": that push runs the real CI.
+          `check` and `build` statuses, are the gate. They cover this commit only:
+          after any later push to this branch (a rebase, say), run
+          `ci-local.sh <this PR>` on kakapo, since GitHub runs no CI here.
 
           Review the nixpkgs diff before merging: merging this to `master` is
           a deploy, applied by `system.autoUpgrade` at 04:00 Asia/Dubai.

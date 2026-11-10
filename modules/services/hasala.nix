@@ -84,6 +84,7 @@ let
     3003 # Immich machine learning
     5000 # Gramps Web
     8090 # ledger
+    config.services.midstudy.webPort
     config.services.adguardhome.port
     config.services.grafana.settings.server.http_port
     config.services.immich.port

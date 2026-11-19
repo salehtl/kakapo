@@ -1,12 +1,39 @@
 name: update-flake-lock
 
-# autoUpgrade only ever builds what flake.lock pins; it never moves the lock.
-# Without this, kakapo stays on one nixpkgs commit indefinitely and stops
-# receiving nixos-26.05 security backports.
+# autoUpgrade only ever builds what flake.lock and pkgs/ pin; it never moves
+# them. Without this, kakapo stays on one nixpkgs commit indefinitely and
+# stops receiving nixos-26.05 security backports, and Claude Code stays on
+# whatever version was last pinned.
+#
+# Two runs, each with its own branch and PR, so they never touch the same file:
+#   lock  (Sundays) `nix flake update`             -> branch flake-lock-bump
+#   apps  (daily)   scripts/bump-apps.sh (pkgs/)   -> branch app-bump
+#
+# Since 2026-11-19 (Saleh's choice) the PR merges itself: the run validates
+# the bump (`nix flake check` + the kakapo toplevel), reports `check` and
+# `build` on it, and turns on auto-merge, unless scripts/lock-review.sh
+# finds a reason to hold it (an input changed its source, or Immich or
+# PostgreSQL moved). A held PR gets `needs-review` and waits for Saleh. A
+# merged bump reaches the host at 04:00 through the guarded upgrade
+# (modules/guarded-upgrade.nix): a bump that does not build activates nothing,
+# and one that breaks DNS, the firewall or a unit is rolled back. Both runs
+# start at about midnight Asia/Dubai so they finish before that 04:00 run.
 on:
   schedule:
-    - cron: "0 2 * * 0" # Sundays 06:00 Asia/Dubai
+    - cron: "0 20 * * 6" # lock: Sundays 00:00 Asia/Dubai
+    - cron: "30 20 * * *" # apps: daily 00:30 Asia/Dubai
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "lock (nix flake update) or apps (scripts/bump-apps.sh)"
+        type: choice
+        options: [lock, apps]
+        default: lock
+
+# One run per mode at a time; a second waits instead of racing the first's push.
+concurrency:
+  group: update-flake-lock-${{ github.event.schedule == '30 20 * * *' && 'apps' || inputs.mode || 'lock' }}
+  cancel-in-progress: false
 
 # Every action is pinned to a commit: a moved tag or branch must not change
 # what runs here, since anything that reaches master is deployed as root at
@@ -21,7 +48,22 @@ jobs:
     permissions:
       id-token: write # FlakeHub Cache authenticates with OIDC
       contents: read
+    outputs:
+      mode: ${{ steps.mode.outputs.mode }}
+      changed: ${{ steps.bump.outputs.changed }}
     steps:
+      - name: Pick the mode
+        id: mode
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+          INPUT_MODE: ${{ inputs.mode }}
+        run: |
+          if [ "$SCHEDULE" = "30 20 * * *" ]; then mode=apps
+          elif [ -n "$INPUT_MODE" ]; then mode=$INPUT_MODE
+          else mode=lock; fi
+          echo "mode=$mode" >>"$GITHUB_OUTPUT"
+          echo "mode: $mode" >>"$GITHUB_STEP_SUMMARY"
+
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
@@ -32,66 +74,99 @@ jobs:
           extra-conf: |
             experimental-features = nix-command flakes
 
+      # Before any build: most days the apps run finds nothing to bump, and
+      # then it stops here instead of building kakapo twice.
+      - name: Bump
+        id: bump
+        env:
+          MODE: ${{ steps.mode.outputs.mode }}
+        run: |
+          cp flake.lock "$RUNNER_TEMP/base.lock"
+          if [ "$MODE" = lock ]; then
+            nix flake update
+          else
+            bash scripts/bump-apps.sh
+          fi
+          if git diff --quiet; then
+            echo "changed=false" >>"$GITHUB_OUTPUT"
+            echo "nothing to bump" >>"$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=true" >>"$GITHUB_OUTPUT"
+            git diff --stat >>"$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Enable Magic Nix Cache
+        if: steps.bump.outputs.changed == 'true'
         uses: DeterminateSystems/magic-nix-cache-action@84c0677f58dcedf3b91f8223ce36a9ea5b3c84b7 # v15
 
       - name: Enable FlakeHub Cache
+        if: steps.bump.outputs.changed == 'true'
         uses: DeterminateSystems/flakehub-cache-action@0975873945367f5239ebb5f49c133bf3543a08f6 # v3
 
-      # The system master builds today, for the closure review below. master's
-      # own CI already built it, so this is mostly cache hits.
+      # The system master builds today, for the closure review below, from a
+      # clean worktree of the commit this run checked out (the bump above is
+      # only in the working tree). master's own CI already built it, so this
+      # is mostly cache hits.
       - name: Build master as the review baseline
+        if: steps.bump.outputs.changed == 'true'
         run: |
-          cp flake.lock "$RUNNER_TEMP/base.lock"
+          git worktree add --detach "$RUNNER_TEMP/base" HEAD
           nix build --no-link --print-out-paths \
-            .#nixosConfigurations.kakapo.config.system.build.toplevel > "$RUNNER_TEMP/old-system"
-
-      - name: nix flake update
-        run: nix flake update
+            "$RUNNER_TEMP/base#nixosConfigurations.kakapo.config.system.build.toplevel" > "$RUNNER_TEMP/old-system"
 
       # GitHub will not run `check` on the pull request opened below: anything
       # done with the default GITHUB_TOKEN does not trigger further workflows.
-      # Rather than store a PAT to work around that, the lock is validated here
-      # — in the same run that opens the PR — which needs no credential and
-      # proves more than `check` would: that the bumped lock still builds this
-      # host. An unvalidated lock is exactly what broke autoUpgrade silently
-      # from 2026-06-01 to 2026-10-03.
+      # Rather than store a PAT to work around that, the bump is validated
+      # here — in the same run that opens the PR — which needs no credential
+      # and proves more than `check` would: that the bumped tree still builds
+      # this host. An unvalidated lock is exactly what broke autoUpgrade
+      # silently from 2026-06-01 to 2026-10-03.
       #
       # These two steps are therefore the gate. If either fails, the job fails
       # and no PR is opened, so a bad bump never reaches a mergeable state.
       - name: nix flake check
+        if: steps.bump.outputs.changed == 'true'
         run: nix flake check --print-build-logs
 
-      - name: kakapo builds on the new lock
+      - name: kakapo builds on the bump
+        if: steps.bump.outputs.changed == 'true'
         run: |
           nix build --print-build-logs --no-link --print-out-paths \
             .#nixosConfigurations.kakapo.config.system.build.toplevel > "$RUNNER_TEMP/new-system"
 
       # What moved, sorted by the kakapo-update skill's scripts, with flags for
-      # Immich/PostgreSQL, kernel and input-source changes. Posted on the PR
-      # below. It does not gate: the two steps above do.
+      # Immich/PostgreSQL, kernel and input-source changes, and the list of
+      # reasons to hold the PR instead of merging it (empty: it may merge).
       - name: Closure review for the pull request
+        if: steps.bump.outputs.changed == 'true'
         run: |
           mkdir -p "$RUNNER_TEMP/review"
           scripts/lock-review.sh "$RUNNER_TEMP/base.lock" flake.lock \
             "$(cat "$RUNNER_TEMP/old-system")" "$(cat "$RUNNER_TEMP/new-system")" \
-            > "$RUNNER_TEMP/review/review.md"
+            "$RUNNER_TEMP/review/hold" > "$RUNNER_TEMP/review/review.md"
           cat "$RUNNER_TEMP/review/review.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Hand the review to the pull-request job
+        if: steps.bump.outputs.changed == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: review
-          path: ${{ runner.temp }}/review/review.md
+          path: |
+            ${{ runner.temp }}/review/review.md
+            ${{ runner.temp }}/review/hold
 
       - name: Hand the bumped files to the pull-request job
+        if: steps.bump.outputs.changed == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: bump
-          path: flake.lock
+          path: |
+            flake.lock
+            pkgs/
 
   pull-request:
     needs: lockfile
+    if: needs.lockfile.outputs.changed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -112,19 +187,27 @@ jobs:
           path: ${{ runner.temp }}/review
 
       # git and gh only: no third-party code holds this job's write token.
-      - name: Open or update the pull request
+      - name: Open or update the pull request, then merge or hold it
         env:
           GH_TOKEN: ${{ github.token }}
+          MODE: ${{ needs.lockfile.outputs.mode }}
         run: |
           if git diff --quiet; then
             echo "nothing to bump"
             exit 0
           fi
+          if [ "$MODE" = lock ]; then
+            branch=flake-lock-bump title="flake: weekly flake.lock bump"
+            what='Automated weekly `nix flake update`.'
+          else
+            branch=app-bump title="pkgs: bump apps to their latest release"
+            what='Automated daily `scripts/bump-apps.sh`: the apps pinned in `pkgs/` (Claude Code) moved to their latest release.'
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -C flake-lock-bump
-          git commit -am "flake: weekly flake.lock bump"
-          git push --force origin flake-lock-bump
+          git switch -C "$branch"
+          git commit -am "$title"
+          git push --force origin "$branch"
 
           # `check` and `build` are required status checks on master, and
           # GitHub never runs them on this PR (see above). The lockfile job
@@ -142,23 +225,33 @@ jobs:
               -f state=success -f context="$ctx" -f target_url="$run_url" \
               -f description="validated by update-flake-lock (flake check + kakapo build)"
           done
-          if [ "$(gh pr list --head flake-lock-bump --state open --json number --jq length)" = 0 ]; then
-            gh pr create --base master --head flake-lock-bump \
-              --title "flake: weekly flake.lock bump" --body-file - <<'BODY'
-          Automated weekly `nix flake update`.
+          if [ "$(gh pr list --head "$branch" --state open --json number --jq length)" = 0 ]; then
+            gh pr create --base master --head "$branch" \
+              --title "$title" --body-file - <<BODY
+          $what
 
-          Validated by the run that opened this PR: `nix flake check` passed
-          and `nixosConfigurations.kakapo` built to a `toplevel`. GitHub does
-          not run `check` on this PR — PRs opened with `GITHUB_TOKEN` do not
+          Validated by the run that opened this PR: \`nix flake check\` passed
+          and \`nixosConfigurations.kakapo\` built to a \`toplevel\`. GitHub does
+          not run \`check\` on this PR — PRs opened with \`GITHUB_TOKEN\` do not
           trigger workflows — so those steps, in the run linked from the
-          `check` and `build` statuses, are the gate. They cover this commit only:
-          after any later push to this branch (a rebase, say), run
-          `ci-local.sh <this PR>` on kakapo, since GitHub runs no CI here.
+          \`check\` and \`build\` statuses, are the gate. They cover this commit
+          only: after any later push to this branch (a rebase, say), run
+          \`ci-local.sh <this PR>\` on kakapo, since GitHub runs no CI here.
 
-          Review the nixpkgs diff before merging: merging this to `master` is
-          a deploy, applied by `system.autoUpgrade` at 04:00 Asia/Dubai.
+          It merges itself unless the review below holds it (\`needs-review\`).
+          Merged, it deploys at 04:00 Asia/Dubai through the guarded upgrade,
+          which rolls back a bump that breaks DNS, the firewall or a unit.
           BODY
-            gh pr edit flake-lock-bump --add-label dependencies || true
+            gh pr edit "$branch" --add-label dependencies || true
           fi
-          # A new comment per run: each one reviews that week's push.
-          gh pr comment flake-lock-bump --body-file "$RUNNER_TEMP/review/review.md"
+          # A new comment per run: each one reviews that run's push.
+          gh pr comment "$branch" --body-file "$RUNNER_TEMP/review/review.md"
+
+          if [ -s "$RUNNER_TEMP/review/hold" ]; then
+            echo "held: $(paste -sd';' "$RUNNER_TEMP/review/hold")"
+            gh pr edit "$branch" --add-label needs-review || true
+            gh pr merge "$branch" --disable-auto || true
+          else
+            gh pr edit "$branch" --remove-label needs-review || true
+            gh pr merge "$branch" --auto --squash
+          fi

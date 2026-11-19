@@ -20,6 +20,14 @@ repeat it. Related skills: **kakapo-change** (making a fix PR),
 house's DNS is broken now), **kakapo-security** (a bump that is a security
 fix or touches exposure).
 
+Since 2026-11-19 the bump PRs merge themselves (CLAUDE.md, the weekly-bump
+paragraph): `flake-lock-bump` (weekly lock) and `app-bump` (daily, Claude
+Code in `pkgs/`) turn on auto-merge once validated, unless
+`scripts/lock-review.sh` holds one with `needs-review` (an input changed its
+source, a review script failed, or Immich or PostgreSQL moved). A held PR is
+where this skill matters most; an unheld one may already be merged, and then
+your review is of what deploys (or deployed) at 04:00.
+
 ## Hard rules
 
 - **Never merge**, even when the verdict is "safe". Merging is a deploy and

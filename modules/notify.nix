@@ -286,4 +286,51 @@ in
       Persistent = true;
     };
   };
+
+  # Reminder to merge the weekly flake.lock bump (update-flake-lock.yml opens
+  # it from branch flake-lock-bump on Sundays): one push a day at 18:00 while
+  # it is open, so nixpkgs does not drift until nixpkgs-age complains. Only a
+  # same-repo PR counts, and the text is fixed: a fork could name its branch
+  # flake-lock-bump, and PR titles are untrusted. Quiet when there is none or
+  # GitHub cannot be reached; the daily report shows the PR list anyway.
+  systemd.services.bump-reminder = {
+    description = "Remind Saleh to merge the weekly flake.lock bump";
+    onFailure = [ "notify-failure@%n.service" ];
+    path = [
+      pkgs.curl
+      pkgs.jq
+      pkgs.coreutils
+    ];
+    serviceConfig.Type = "oneshot";
+    script = ''
+      set -u
+      prs=$(curl -fsS --max-time 15 \
+        "https://api.github.com/repos/salehtl/kakapo/pulls?state=open&head=salehtl:flake-lock-bump") || {
+        echo "GitHub API failed; no reminder" >&2
+        exit 0
+      }
+      pr=$(printf '%s' "$prs" | jq -r '[.[] | select(.head.repo.full_name == "salehtl/kakapo")][0] // empty
+        | "\(.number) \(.created_at)"')
+      if [ -z "$pr" ]; then
+        echo "no open bump PR"
+        exit 0
+      fi
+      read -r n created <<<"$pr"
+      days=$(( ($(date +%s) - $(date -d "$created" +%s)) / 86400 ))
+      url="https://github.com/salehtl/kakapo/pull/$n"
+      echo "bump PR #$n open for $days day(s)"
+      curl -fsS --max-time 10 -o /dev/null \
+        -H "Title: [${config.networking.hostName}] merge the package updates (#$n)" \
+        -H "Priority: default" -H "Tags: package" -H "Click: $url" \
+        --data-binary "The weekly flake.lock bump #$n has been open for $days day(s). Ask an agent to review it (kakapo-update), then merge it: $url" \
+        http://127.0.0.1:2586/kakapo
+    '';
+  };
+  systemd.timers.bump-reminder = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "18:00";
+      Persistent = true;
+    };
+  };
 }

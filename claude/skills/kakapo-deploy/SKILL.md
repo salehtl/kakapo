@@ -52,6 +52,10 @@ Hard rules, no exceptions:
 - The `hasala-release` workflow auto-merges its own PR unless it is labelled
   `needs-review`. That is the workflow's standing exception, not yours. A
   `needs-review` hasala PR is merged by you only when Saleh names it (or "all").
+- Since 2026-11-19 the `update-flake-lock` workflow does the same for its
+  `flake-lock-bump` (weekly) and `app-bump` (daily) PRs: it merges them
+  itself unless it labels one `needs-review`. Again the workflow's exception,
+  not yours: a held bump PR is merged by you only when Saleh names it.
 
 ## 1. Before merging
 

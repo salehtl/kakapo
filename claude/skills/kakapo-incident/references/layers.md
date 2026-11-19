@@ -121,7 +121,7 @@ systemctl status acme-order-renew-salehtl.com lan-proxy-dns lan-proxy-spoof-chec
   `lan-proxy-dns` maintains. A failed `lan-proxy-dns` mails once; read its
   journal. It must only ever touch records commented
   `Managed by github:salehtl/kakapo`.
-- **Gated names (grafana, ledger, hasala) answer 401/403:** expected for
+- **Gated names (grafana, hasala, t3, cliproxy) answer 401/403:** expected for
   non-tailnet clients, kakapo and homeassistant (`untaggedDeny`), and for the
   Hasala console from devices not in `consoleDevices`. Not an outage.
 - **Cert expired:** check the ACME renew unit's journal (Cloudflare DNS-01
@@ -136,7 +136,6 @@ systemctl status <unit> --no-pager; journalctl -u <unit> -n 200 --no-pager
 
 | Service | Units | Local check |
 |---|---|---|
-| ledger | `ledger` | `curl -s http://127.0.0.1:8090/api/health` |
 | Immich | `immich-server`, `immich-machine-learning`, `postgresql`, `redis-immich` | needs `/mnt/media` mounted (`RequiresMountsFor`) |
 | Grafana / Prometheus | `grafana`, `prometheus`, `prometheus-*-exporter` | `127.0.0.1:3000`, `127.0.0.1:9090` |
 | ntfy | `ntfy-sh` | `127.0.0.1:2586` |

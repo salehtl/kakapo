@@ -75,7 +75,7 @@
 #          so any local user or service on kakapo can reach them there
 #          directly, without nginx: Grafana on 127.0.0.1:3000 trusts a
 #          Tailscale-User-Login header from loopback (admin for
-#          salehtl@github), ledger on 127.0.0.1:8090 has no login, and ntfy on
+#          salehtl@github), and ntfy on
 #          127.0.0.1:2586 takes anonymous publishes.
 #
 # Adding a service: add `<name> = <port>;` to `proxied` below. It becomes
@@ -163,7 +163,7 @@ let
   ];
 
   # name -> 127.0.0.1 port, with no authentication added. Never Grafana (it
-  # has its own vhost below) or ledger; see the assertions.
+  # has its own vhost below).
   proxied = {
     # No login, by Saleh's choice (2026-10-05): anyone on the LAN or tailnet
     # can change AdGuard's filtering. Revisit if that ever matters.
@@ -198,9 +198,6 @@ let
   # tailscale-nginx-auth like Grafana, but without the identity header. For
   # apps with their own login that are too dangerous for the plain LAN.
   tailnetOnly = {
-    # ledger has no login of its own; this gate is its only access control
-    # (modules/services/ledger.nix).
-    ledger = ledgerPort;
     # Hasala's operator console (waitlist approval, invites, mail log;
     # modules/services/hasala.nix). It has no login of its own: it trusts
     # X-Webauth-User and X-Webauth-Tailnet, which tailscale-nginx-auth sets on
@@ -327,9 +324,6 @@ let
     + (serverExtra.${name} or "");
 
   grafanaPort = config.services.grafana.settings.server.http_port;
-  ledgerPort = lib.toInt (
-    lib.last (lib.splitString ":" config.services.ledger.settings.server.listen)
-  );
 
   vhost =
     extra:
@@ -807,10 +801,6 @@ in
           && !(hasDirective [ "satisfy" ] httpLevelConfig)
         );
       message = "hasala.${zone} must answer only consoleDevices (modules/services/lan-proxy.nix): each entry a single tailnet address of Saleh's own Mac, iPhone or iPad, never a range, `all`, or a server node (${lib.concatStringsSep ", " (lib.attrNames servers)}), with the vhost's server config exactly the stopgap `deny`s (untaggedDeny), those `allow`s, then `deny all;`, no `allow` or `deny` in any of its locations (a location's own rules replace the server's), and no `satisfy` in the vhost or the http block (commonHttpConfig, httpConfig, appendHttpConfig). tailscale-nginx-auth vouches for every untagged node logged in as salehtl@github, servers included.";
-    }
-    {
-      assertion = !(lib.elem ledgerPort (lib.attrValues proxied));
-      message = "ledger is in `proxied`, which forwards without authentication. It has no login, holds financial data and is tailnet-only by policy (modules/services/ledger.nix); keep it in `tailnetOnly`.";
     }
   ];
 }

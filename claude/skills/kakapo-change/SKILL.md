@@ -157,13 +157,12 @@ The whole house resolves through kakapo, and a broken firewall reload once left
 - **Ports, auth gates, proxies or secrets**: re-check the invariants and the
   assertions in the repo `CLAUDE.md` before you open the PR, and say in the PR body
   what the change exposes and to whom.
-- **Stateful services** (Immich, ledger, hasala, any Postgres, anything with a
+- **Stateful services** (Immich, hasala, any Postgres, anything with a
   database or a `stateVersion`): if the closure diff changes their version, do not
   test-activate until Saleh agrees. The new build migrates data on start, and a
   rollback (by the guard, by you, or by 04:00 on an unmerged PR) puts the old binary
   on the new schema. Confirm a fresh dump first (Immich: `sudo ls -lt
-  /mnt/media/immich/backups | head -3`; hasala: `/mnt/media/hasala-backup`; ledger
-  copies itself to `/var/lib/ledger/backups`), and say in the PR body that the
+  /mnt/media/immich/backups | head -3`; hasala: `/mnt/media/hasala-backup`), and say in the PR body that the
   change migrates data and is not safe to roll back. Never test an unmerged major
   version bump of these on the host.
 

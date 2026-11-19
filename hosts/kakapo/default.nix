@@ -23,7 +23,6 @@
     ../../modules/services/hasala.nix
     ../../modules/services/immich.nix
     ../../modules/services/lan-proxy.nix
-    ../../modules/services/ledger.nix
     ../../modules/services/midstudy.nix
     ../../modules/services/monitoring.nix
     ../../modules/services/ntfy.nix

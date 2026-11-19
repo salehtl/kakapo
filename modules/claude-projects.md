@@ -5,7 +5,7 @@ the kakapo flake (`modules/claude-projects.md` in github:salehtl/kakapo), so
 edits here do not stick: change it there.
 
 kakapo is a home server first. It answers DNS for every device in the house
-(AdGuard), and runs ledger (real financial data), Immich (the photo library),
+(AdGuard), and runs Immich (the photo library),
 Grafana and a few more apps. Project work happens alongside them and must
 never put them at risk. When a rule below gets in your way, stop and ask the
 user; do not work around it.

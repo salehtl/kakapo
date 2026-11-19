@@ -19,27 +19,6 @@
         "type": "github"
       }
     },
-    "ledger": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1791047457,
-        "narHash": "sha256-i/sv6ji9axwxhmDmAVEmyVhjM6J1hlrx8WoQkz7DlC4=",
-        "owner": "salehtl",
-        "repo": "ledger",
-        "rev": "f32b62367e290190f1909f21687364a5a0330b68",
-        "type": "github"
-      },
-      "original": {
-        "owner": "salehtl",
-        "repo": "ledger",
-        "rev": "f32b62367e290190f1909f21687364a5a0330b68",
-        "type": "github"
-      }
-    },
     "midstudy": {
       "inputs": {
         "nixpkgs": "nixpkgs_2",
@@ -127,7 +106,6 @@
     "root": {
       "inputs": {
         "hasala": "hasala",
-        "ledger": "ledger",
         "midstudy": "midstudy",
         "nixpkgs": "nixpkgs_3",
         "nixpkgs-unstable": "nixpkgs-unstable",

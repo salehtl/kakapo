@@ -37,7 +37,7 @@ Usual causes and fixes:
   from one input, move the others and hold that one back:
   `git checkout origin/master -- flake.lock`, then `nix flake update <input>
   ...` naming every input except the bad one (inputs: `nixpkgs`,
-  `nixpkgs-unstable`, `sops-nix`, `treefmt-nix`, `ledger`). Say in the PR which input is held and why, and check
+  `nixpkgs-unstable`, `sops-nix`, `treefmt-nix`). Say in the PR which input is held and why, and check
   next week whether upstream fixed it. Do not add overlays that patch
   nixpkgs packages unless Saleh agrees.
 - **Evaluation error** from a removed or renamed option: fix the module that

@@ -205,13 +205,14 @@ location. It prints each vhost as `GATED`, `PARTIAL`, `OPEN`, `STATIC` (no
 proxy, the `kakapo.` test page) or `REJECT` (the `_` default server), and
 exits 1 on a violation: a gated name not fully `GATED`, any `PARTIAL` vhost,
 an ungated location that proxies to a gated app's port, or a `listen` other
-than `10.0.0.215:443`. `grafana`, `ledger` and `hasala` are built in; pass
+than `10.0.0.215:443`. `grafana`, `hasala`, `t3` and `cliproxy` are built in; pass
 any other `tailnetOnly` key with `--gated`. If master's `-c` path differs from
 the running one, `nix build` that config into the scratchpad, run the script
 on it too, and report the difference. Check:
 
 - Any gated name not `GATED` is **Critical**: Grafana grants admin from a
-  header, ledger has no login, the Hasala console trusts `X-Webauth-User`.
+  header, the Hasala console trusts `X-Webauth-User`, `t3` runs agents with a
+  shell.
 - Every `OPEN` name is in `proxied`/`lanUpstreams` and the app has its own
   login (or is AdGuard, accepted). A new `OPEN` name for an app without a
   login is **High**.
@@ -460,9 +461,9 @@ Host: `<readlink /run/current-system>`. Repo: `master` at `<sha>`.
 - <one line each, only if relevant>
 ```
 
-STE example for a finding: "`ledger.salehtl.com` has no gate. Anyone on the
-LAN can read the ledger. Add `ledger` to `tailnetOnly` again." Not: "It
-looks like ledger is currently being served without auth, which might be
+STE example for a finding: "`t3.salehtl.com` has no gate. Anyone on the
+LAN can run commands on kakapo. Add `t3` to `tailnetOnly` again." Not: "It
+looks like t3 is currently being served without auth, which might be
 risky."
 
 Rank rows by severity, then by exposure. Put the command output that proves

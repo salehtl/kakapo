@@ -150,8 +150,8 @@ in
     - `nixos-rebuild switch` survives a reboot, but `master` replaces it at
       04:00. Do not use it to ship a change; open a PR.
     - The 04:00 upgrade builds only what `flake.lock` pins and never moves the
-      lock. nixpkgs moves when the weekly bump PR is merged; hasala, ledger
-      and midstudy are pinned to commits and move only by a PR that changes
+      lock. nixpkgs moves when the weekly bump PR is merged; hasala and
+      midstudy are pinned to commits and move only by a PR that changes
       the rev in `flake.nix`.
 
     A failed upgrade mails and pushes, but do not assume the host is current.

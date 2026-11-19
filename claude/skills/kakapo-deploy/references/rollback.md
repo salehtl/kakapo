@@ -77,8 +77,6 @@ current before the merge (its build date predates the merge); if unsure, use
 A rollback of the NixOS generation does not roll back state in `/var/lib`.
 Check the module before reverting anything with migrations:
 
-- ledger copies `ledger.db` to `/var/lib/ledger/backups/before-<build>.db` before
-  a new build first opens it.
 - hasala migrations are expand-only within a release, and
   `hasala-backup-premigrate` dumps first; a revert PR is the rollback.
 - Immich (`pkgs.unstable.immich`) migrates its database on start and cannot

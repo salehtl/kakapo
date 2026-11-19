@@ -56,6 +56,15 @@
     "1.0.0.2"
   ];
 
+  # rabbit (Saleh's Mac) by its MagicDNS name, for kakapo itself: the host
+  # does not use MagicDNS (above), and T3 Code links to another machine's t3
+  # only by https or a Tailscale name, never a bare tailnet IP over http
+  # (2026-11-19). The LAN gains nothing new: AdGuard already answers this
+  # name with the same address through its *.ts.net forward. A tailnet IP is
+  # stable until the node re-registers; if rabbit gets a new one
+  # (`tailscale status`), update it here.
+  networking.hosts."100.118.80.39" = [ "rabbit.marmoset-paradise.ts.net" ];
+
   boot.loader.systemd-boot.enable = true;
   # Bounds /boot (vfat, 1 GiB): each distinct kernel+initrd pair costs ~41 MiB,
   # and a full /boot makes nixos-rebuild fail — silently, at 04:00.

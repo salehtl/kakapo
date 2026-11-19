@@ -80,6 +80,15 @@ in
         "t3code.service"
       ];
     };
+    # T3 Code's GitHub login (modules/services/t3code.nix): a fine-grained
+    # token of Saleh's, scoped to chosen repos, with no `statuses` or
+    # `workflows` permission. Root-only; the unit reads it through
+    # LoadCredential= and exports it as GH_TOKEN.
+    secrets."t3code/github_token" = {
+      sopsFile = ../secrets/t3code.yaml;
+      key = "t3code/github_token";
+      restartUnits = [ "t3code.service" ];
+    };
     secrets."cliproxyapi/management_key" = {
       sopsFile = ../secrets/cliproxyapi.yaml;
       key = "cliproxyapi/management_key";

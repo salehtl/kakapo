@@ -74,7 +74,11 @@ in
     secrets."cliproxyapi/api_key" = {
       sopsFile = ../secrets/cliproxyapi.yaml;
       key = "cliproxyapi/api_key";
-      restartUnits = [ "cliproxyapi.service" ];
+      # t3code's Claude Code uses it too (modules/services/t3code.nix).
+      restartUnits = [
+        "cliproxyapi.service"
+        "t3code.service"
+      ];
     };
     secrets."cliproxyapi/management_key" = {
       sopsFile = ../secrets/cliproxyapi.yaml;

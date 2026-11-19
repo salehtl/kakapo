@@ -18,6 +18,7 @@
     ../../modules/nodejs.nix
     ../../modules/python.nix
     ../../modules/services/adguard.nix
+    ../../modules/services/cliproxyapi.nix
     ../../modules/services/grampsweb.nix
     ../../modules/services/hasala.nix
     ../../modules/services/immich.nix
@@ -26,6 +27,7 @@
     ../../modules/services/midstudy.nix
     ../../modules/services/monitoring.nix
     ../../modules/services/ntfy.nix
+    ../../modules/services/t3code.nix
     ../../modules/services/zapret.nix
   ];
 

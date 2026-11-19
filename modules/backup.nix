@@ -15,7 +15,8 @@ in
   #
   # Today every copy of it lives on this host: the Immich library and its
   # nightly database dumps, and Hasala's age-encrypted dumps, are all on the
-  # one media SSD (/mnt/media, sda); ledger and Gramps Web are on the root
+  # one media SSD (/mnt/media, sda); ledger (retired 2026-11-19, its
+  # data kept as an archive) and Gramps Web are on the root
   # NVMe. One failed disk, a fire or a theft loses them. Everything else on
   # kakapo is declared in this flake and rebuilds from it.
   #

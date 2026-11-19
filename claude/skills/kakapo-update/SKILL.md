@@ -13,7 +13,7 @@ the host, whether any of it needs a migration or a manual step, prove the new
 system runs, and leave Saleh a verdict he can act on in one line.
 
 Read `CLAUDE.md` in the repo first ("Making a change", the weekly-bump
-paragraph, and the Immich, hasala and ledger bullets). This skill does not
+paragraph, and the Immich and hasala bullets). This skill does not
 repeat it. Related skills: **kakapo-change** (making a fix PR),
 **kakapo-deploy** (after a merge: boot default, putting the host back),
 **kakapo-health** (full health check), **kakapo-incident** (the host or the
@@ -111,7 +111,7 @@ other than `nixos-26.05`, is **Do not merge** unless the PR changes
 
 `lock-diff.py` names each input by its path (`nixpkgs`, `hasala/nixpkgs`),
 prints the old and new revs with dates, and a GitHub compare URL. Expect
-`nixpkgs`, `nixpkgs-unstable`, `sops-nix`, `treefmt-nix` and `ledger` to move
+`nixpkgs`, `nixpkgs-unstable`, `sops-nix` and `treefmt-nix` to move
 weekly. `hasala` and its inputs must **not** move in a weekly bump (its rev is
 pinned in `flake.nix`); if they do, someone changed the rev, and it is a
 hasala release, reviewed as such (CLAUDE.md "Release a new hasala version").
@@ -255,7 +255,6 @@ systemctl --failed --no-legend
 curl -s 127.0.0.1:2283/api/server/version          # Immich: expect the new version
 journalctl -u immich-server -b --since -10min --no-pager | grep -iE 'migrat|error' | tail
 curl -s 127.0.0.1:2586/v1/health                    # ntfy
-curl -s 127.0.0.1:8090/api/health                   # ledger
 host one.one.one.one 10.0.0.215                     # AdGuard (guarded-test also checks)
 systemctl show -p Result dns-health.service         # last minute's DNS probe
 ```

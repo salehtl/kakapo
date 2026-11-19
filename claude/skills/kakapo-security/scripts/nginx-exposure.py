@@ -26,10 +26,11 @@ import re
 import subprocess
 import sys
 
-# grafana has its own vhost; ledger and hasala are in `tailnetOnly`. Grafana
-# grants admin from a header, ledger has no login, the Hasala console trusts
-# X-Webauth-User. Add any other `tailnetOnly` key with --gated.
-MUST_BE_GATED = {"grafana", "ledger", "hasala"}
+# grafana has its own vhost; hasala, t3 and cliproxy are in `tailnetOnly`.
+# Grafana grants admin from a header, the Hasala console trusts
+# X-Webauth-User, t3 runs agents with a shell, cliproxy spends Saleh's
+# subscription. Add any other `tailnetOnly` key with --gated.
+MUST_BE_GATED = {"grafana", "hasala", "t3", "cliproxy"}
 LISTEN = "10.0.0.215:443"
 
 

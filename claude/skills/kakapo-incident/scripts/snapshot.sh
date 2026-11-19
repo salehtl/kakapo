@@ -93,7 +93,6 @@ hdr "4. failed units"
 failed=$(systemctl list-units --state=failed,auto-restart --plain --no-legend)
 echo "${failed:-none}"
 echo "--- local health endpoints:"
-echo "ledger: HTTP $(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8090/api/health)"
 # hasala-api-out resets every local connection to :8471 except root's and
 # hasala's own users, so this probe must run as root (a read).
 echo "hasalad: HTTP $(sudo -n curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8471/api/v1/healthz)"

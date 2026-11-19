@@ -16,13 +16,6 @@ in
     # One sops file per service under secrets/. There is no defaultSopsFile,
     # so every secret names its own sopsFile.
 
-    # ledger's LEDGER_* environment, one multi-line value.
-    secrets."ledger/env" = {
-      sopsFile = ../secrets/ledger.yaml;
-      key = "ledger/env";
-      restartUnits = [ "ledger.service" ];
-    };
-
     # iCloud app-specific password for the upgrade-failure email
     # (modules/notify.nix). Read per send, so nothing needs restarting.
     secrets."notify/smtp_password" = {

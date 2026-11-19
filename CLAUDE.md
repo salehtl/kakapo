@@ -104,7 +104,7 @@ Composition is layered; each layer only knows about the one below it. Every modu
 
 ### Flake and host
 
-- `flake.nix` → wires `nixpkgs` (channel `nixos-26.05`), `nixpkgs-unstable`, `sops-nix`, `ledger` (`github:salehtl/ledger`, pinned to a commit since 2026-11-10, for its NixOS module), `hasala` (`github:salehtl/hasala`, pinned to a commit, for its NixOS module; no `follows`) `midstudy` (`github:salehtl/midstudy`, pinned to a commit, for its NixOS module; no `follows`) and `treefmt-nix` into `nixosConfigurations.kakapo`, plus exposes `formatter` + `checks.formatting` per system. Its overlay adds `pkgs.unstable`, the nixpkgs-unstable package set used for claude-code, herdr, tuios, Immich (package and NixOS module) and Tailscale; nothing else comes from unstable.
+- `flake.nix` → wires `nixpkgs` (channel `nixos-26.05`), `nixpkgs-unstable`, `sops-nix`, `hasala` (`github:salehtl/hasala`, pinned to a commit, for its NixOS module; no `follows`) `midstudy` (`github:salehtl/midstudy`, pinned to a commit, for its NixOS module; no `follows`) and `treefmt-nix` into `nixosConfigurations.kakapo`, plus exposes `formatter` + `checks.formatting` per system. Its overlay adds `pkgs.unstable`, the nixpkgs-unstable package set used for claude-code, herdr, tuios, Immich (package and NixOS module) and Tailscale; nothing else comes from unstable.
 - `treefmt.nix` → formatter config: `nixfmt-rfc-style` + `deadnix` + `statix`.
 - `hosts/kakapo/default.nix` → **host identity + invariants**: hostname, bootloader (systemd-boot + EFI), declared users (`saleh`, `humaid`) + their SSH keys, `users.mutableUsers = false`, `security.sudo.wheelNeedsPassword = false`, docker, direnv + nix-direnv, mosh (no firewall opening; tailnet only), `claude-code`, `herdr`, `tuios` and `gh`, unfree packages allowed by name via `allowUnfreePredicate` (the NVIDIA driver; claude-code comes from `pkgs.unstable`, whose own predicate is in `flake.nix`), the global firewall port list (`allowedTCPPorts = [ 22 ]`; the `53` and `443` exceptions are interface-scoped in their own modules), and five eval-time `assertions` guarding hostname/`saleh`-SSH-key-presence/key-only SSH/firewall/Tailscale SSH off. Imports `hardware.nix` + the shared modules.
 - `hosts/kakapo/hardware.nix` → disks (UUID-pinned ext4 root + vfat /boot + /mnt/media), kernel modules (`kvm-amd`, `igb` NIC), AMD microcode, and the GPU: a GeForce RTX 2060 (6 GB) on NVIDIA's driver (open kernel modules, `nvidia-persistenced`, no X). The host only carries the driver (`nvidia-smi` included); CUDA libraries belong in each project's flake with its own `allowUnfree`/`cudaSupport`. Don't add host packages that pull in the CUDA toolkit (e.g. `nvtopPackages.nvidia`). This is the file to touch for storage/hardware changes.
@@ -127,7 +127,7 @@ Composition is layered; each layer only knows about the one below it. Every modu
   - `modules/claude-projects.md`, the rules for project work (each project has a flake devShell and a committed `.envrc` with `use flake`; direnv + nix-direnv are enabled host-wide): installed as `/etc/claude-code/projects.md` and linked as `~/src/CLAUDE.md` for every normal user, so sessions started in `~/src/<project>` load it automatically. Projects take their tools from their own flake, never the host; edit the rules there, not on the host.
   - It also installs the host-management skills from `claude/skills/<name>/` (`/etc/claude-code/skills`, linked into each user's `~/.claude/skills` by tmpfiles): `kakapo-health`, `kakapo-security`, `kakapo-change`, `kakapo-deploy`, `kakapo-update`, `kakapo-incident`, `kakapo-housekeeping` and `hasala-release`.
   - Their bundled scripts (`check.sh`, `pr-gate.sh`, `deploy.sh`, `pick-release.sh`, `verify.sh`, the lock helpers) are used by the timers and workflows below, so keep their output formats and exit codes stable.
-- `modules/sops.nix` → **secrets**: declares `sops-nix` config, derives the host's age decryption key from `/etc/ssh/ssh_host_ed25519_key`, and registers each declared secret to be exposed at `/run/secrets/<name>` at boot. One sops file per service under `secrets/` (`acme`, `grampsweb`, `hasala`, `healthchecks`, `ledger`, `midstudy`, `notify`, `ntfy`); there is no `defaultSopsFile`, so each secret sets its own `sopsFile`.
+- `modules/sops.nix` → **secrets**: declares `sops-nix` config, derives the host's age decryption key from `/etc/ssh/ssh_host_ed25519_key`, and registers each declared secret to be exposed at `/run/secrets/<name>` at boot. One sops file per service under `secrets/` (`acme`, `grampsweb`, `hasala`, `healthchecks`, `cliproxyapi`, `midstudy`, `notify`, `ntfy`); there is no `defaultSopsFile`, so each secret sets its own `sopsFile`.
   - The UniFi config (Dream Router at `https://10.0.0.1`) is out-of-band — nothing in this flake applies it, and since 2026-10-20 kakapo holds no UniFi API key — so record any change that kakapo depends on here.
 - `modules/ca-trust.nix` → **root certificates**: nixpkgs owns which roots are distrusted (`security/ca.nix` and nss-cacert >= 3.131.1). Do not set `security.pki.caCertificateBlacklist` for a root that nss-cacert does not ship: the `cacert` build fails with "Certs in blocklist but not in cert store". For the same reason `services.hasala.hardening.distrustedCARoots` stays `[ ]`: Hasala's default names roots that nss-cacert has dropped. Programs that bring their own list are pointed at the system bundle: Nix's Python certifi through `NIX_SSL_CERT_FILE` (shells and `immich-machine-learning`), the Gramps Web containers by a read-only mount plus `SSL_CERT_FILE`/`REQUESTS_CA_BUNDLE`. nixpkgs' Node already reads the system bundle. A new Python service or container needs the same.
 - `modules/notify.nix` → **failure email**: `nixos-upgrade.service` has `onFailure = [ "notify-failure@%n.service" ]`, which mails `salehtl@icloud.com` the unit's status and last 100 journal lines through iCloud SMTP (`smtp.mail.me.com:587`) with msmtp. The password is an Apple app-specific password in `secrets/notify.yaml` (`notify/smtp_password`), root-only, so only root can send. Any other unit can opt in with the same `onFailure` line.
@@ -136,7 +136,7 @@ Composition is layered; each layer only knows about the one below it. Every modu
   - `health-check` (every 15 min) runs the kakapo-health `check.sh --offline` as root and pushes to ntfy only when the set of WARN/FAIL lines changes (state in `/var/lib/health-check/problems`; the `generation` check is left out, since every guarded test trips it); it also pings healthchecks.io (`secrets/healthchecks.yaml`, through `LoadCredential`; `/fail` on exit 2 or when check.sh cannot run), the external dead-man switch that mails Saleh if kakapo stops reporting.
   - `health-report` (daily 09:00, `Persistent`) runs check.sh online and pushes one ntfy summary with open PRs and `master` CI.
   - Outbound only; no port opened.
-- `modules/backup.nix` → **off-site restic backup, written but off** (`kakapo.backup.enable = false`; the target is not chosen yet). When on, it backs up Immich's library and dumps, the Hasala and ledger dumps and Gramps Web's media and secret at 05:00, after SQLite `.backup` copies into `/var/backups/restic-staging`, keeps 7 daily/5 weekly/12 monthly and reads 2% of the data in its check. Enabling it needs `kakapo.backup.repository` and a new `secrets/backup.yaml` (`backup/restic_password`, `backup/env`); do a restore test before trusting it. Until then the only copies are on `/mnt/media`, the same machine.
+- `modules/backup.nix` → **off-site restic backup, written but off** (`kakapo.backup.enable = false`; the target is not chosen yet). When on, it backs up Immich's library and dumps, the Hasala dumps, the archived ledger data and Gramps Web's media and secret at 05:00, after SQLite `.backup` copies into `/var/backups/restic-staging`, keeps 7 daily/5 weekly/12 monthly and reads 2% of the data in its check. Enabling it needs `kakapo.backup.repository` and a new `secrets/backup.yaml` (`backup/restic_password`, `backup/env`); do a restore test before trusting it. Until then the only copies are on `/mnt/media`, the same machine.
 - `modules/nodejs.nix` → **temporary Node.js + npm** (`pkgs.nodejs`, 2026-10-07) for saleh's ad-hoc use. Isolated so it can be removed by dropping its one import in `hosts/kakapo/default.nix`; nothing else depends on it.
 - `modules/python.nix` → **Python 3** (`pkgs.python3`, 2026-10-14) for saleh's ad-hoc use, isolated like `nodejs.nix`: drop its one import to remove it. Projects still take their Python from their own flake.
 
@@ -203,7 +203,6 @@ Each listens on `127.0.0.1` and is reached through the LAN proxy: `proxied` (hou
 
 | App | Module | Name | Reach | Login |
 |---|---|---|---|---|
-| ledger | `ledger.nix` | `ledger.salehtl.com` | tailnet only | none (the gate is its only control) |
 | Hasala console | `hasala.nix` | `hasala.salehtl.com` | tailnet only, Saleh's Mac and iPhone | none (identity from the proxy) |
 | Hasala API | `hasala.nix` | `api.hasala.app` | **public**, own Cloudflare Tunnel | the app's own |
 | T3 Code | `t3code.nix` | `t3.salehtl.com` | tailnet only | its own one-time pairing token |
@@ -216,9 +215,7 @@ Each listens on `127.0.0.1` and is reached through the LAN proxy: `proxied` (hou
 | AdGuard UI | `adguard.nix` | `adguard.salehtl.com` | house and tailnet | none, by Saleh's choice |
 | Home Assistant | `lan-proxy.nix` (`lanUpstreams`) | `home.salehtl.com` | house and tailnet | its own (on the HA Yellow) |
 
-- `modules/services/ledger.nix` → **ledger 1.0**, Saleh's budgeting PWA (moved from dinosaur on 2026-10-03). The module itself is `services.ledger` from the `ledger` flake input (`nix/module.nix` there). Listens on `127.0.0.1:8090`; state and real financial data in `/var/lib/ledger` (0700), with a copy in `/var/lib/ledger/backups` before each new build first runs. Secrets come from `/run/secrets/ledger/env`. `requireDatabase` keeps the unit down until `ledger.db` exists.
-  - It is **tailnet only**, served at `https://ledger.salehtl.com` through the LAN proxy's `tailnetOnly` list (tailscale-nginx-auth). ledger has **no login of its own**, so that gate is its only access control on the network (a local process on kakapo can still reach `127.0.0.1:8090` directly; see "Tailnet identity"); an assertion keeps it out of the unauthenticated `proxied` list. (Until 2026-10-07 it was on `tailscale serve` at the ts.net address; installed PWAs and push subscriptions from there must be redone from the new name.)
-  - Never add a public hostname or an Access policy for it; it holds financial data and is never public.
+- **ledger was retired on 2026-11-19** (Saleh's budgeting PWA, `github:salehtl/ledger`, on kakapo since 2026-10-03). Its module, flake input, proxy name and secret are gone. Its data stays on disk as an archive: `/var/lib/ledger` (`ledger.db` and `backups/`, 0700, now owned by a UID with no user), still in `modules/backup.nix` and in Hasala's `InaccessiblePaths`. Delete it only on Saleh's word.
 - `modules/services/t3code.nix` → **T3 Code** (2026-11-19), a web UI for coding agents (Codex, Claude Code), from `pkgs.unstable.t3code` (only `t3 serve` runs; the package also carries its Electron app, about 2 GB in the store).
   - Runs as its own system user `t3code`, **not `saleh`, by Saleh's choice** (2026-11-19): agents run shell commands from a web page, and `saleh` has sudo with no password. No sudo, `ProtectHome`, `NoNewPrivileges`; never add it to `wheel`, `docker` or another group that reaches root. State, the agents' own logins (`.codex`, `.claude`) and the workspace `work/` are in `/var/lib/t3code` (0700). Not in the restic backup.
   - Served at `https://t3.salehtl.com` through the LAN proxy's `tailnetOnly` list. A browser also needs a one-time pairing token: run `t3code-pair` on kakapo (it mints one as `t3code`; 5 minutes by default) and open the URL it prints. The server prints a startup pairing QR to its journal too. Never `--lan`, `--tailscale-serve`, `t3 up` or `t3 pair --tailscale`.
@@ -246,7 +243,7 @@ Each listens on `127.0.0.1` and is reached through the LAN proxy: `proxied` (hou
 - `modules/services/hasala.nix` → **Hasala's QA backend** (2026-10-11), the API for the Hasala iOS beta. The module is `services.hasala` from the `hasala` flake input (`infra/qa/nix/module.nix` there; the plan this follows is `infra/qa/HOST-PR.md`).
   - Everything is `PartOf` `hasala.target` (kill switch: `sudo systemctl stop hasala.target`): its **own** PostgreSQL 17 (`hasala-postgresql`, unix socket only at `/run/hasala-postgresql`, data `/var/lib/hasala-postgresql/17`; never `services.postgresql`, which is Immich's), `hasala-migrate` before every start, and `hasalad` on `127.0.0.1:8471` (metrics `9471`, not served yet).
   - Daily 03:15 age-encrypted dumps go to `/mnt/media/hasala-backup` (29 days, `RequiresMountsFor`, so a missing media disk also stops `hasalad` from starting: fail closed); the recipient is Saleh's Mac sops key for now, no decryption key is on the host, and there is no off-site copy yet.
-  - Admin is `sudo hasala-admin <mode>`. Every unit gets `onFailure` mail/ntfy and an `InaccessiblePaths` list of the other services' state (ledger's first). Secrets from `secrets/hasala.yaml` reach units only through `LoadCredential=`.
+  - Admin is `sudo hasala-admin <mode>`. Every unit gets `onFailure` mail/ntfy and an `InaccessiblePaths` list of the other services' state (the archived ledger data's first). Secrets from `secrets/hasala.yaml` reach units only through `LoadCredential=`.
   - **Public ingress is ON** since 2026-10-11 (approved by Saleh): `cloudflared-hasala` serves `api.hasala.app` through Hasala's own tunnel `hasala-qa`, with outbound mail and APNs on. Gmail push stays off until its Pub/Sub push subscription and signing service account exist.
   - The waitlist requires a Cloudflare Turnstile token (`web.turnstile.secretFile`, `hasala/turnstile_secret`; the site key is in the website's build), and siteverify must return the action and the hostname `hasala.app`.
   - The tunnel is **locally managed** (`config_src = local`): never migrate it to remote (dashboard) management, because a dashboard ingress would replace the module's asserted path allowlist and could point at any loopback service. When `hasalad` is down, `127.0.0.1:8471` is publicly routed, so never bind it from anything else.
@@ -299,7 +296,7 @@ readlink /run/current-system                     # toplevel store path
 nix store diff-closures /run/booted-system /run/current-system   # what changed since last boot
 ```
 
-The "Configuration Revision" column is empty until `system.configurationRevision` is wired into the flake — pending follow-up. Until then, verify the active config by checking expected services (`systemctl status ledger`) or firewall state (`sudo iptables -L INPUT -n | grep dpt`).
+The "Configuration Revision" column is empty until `system.configurationRevision` is wired into the flake — pending follow-up. Until then, verify the active config by checking expected services (`systemctl status ntfy-sh`) or firewall state (`sudo iptables -L INPUT -n | grep dpt`).
 
 ### Change anything that can touch AdGuard or networking
 
@@ -313,24 +310,6 @@ sudo unshare --net env PATH="$fwpath" /bin/sh -c '"$1"; echo "firewall-start exi
 ```
 
 It must print `firewall-start exit 0`, and `-A INPUT -j nixos-fw` under both `-S INPUT` listings. Test any AdGuard startup change *inside its real sandbox* (`SystemCallFilter`, `DynamicUser`), not on a copy outside it — a preStart step that passed outside the sandbox was killed by seccomp inside it on 2026-10-05 and took the house's DNS down for two minutes. `dns-health` emails if DNS stays down.
-
-### Deploy a new ledger version
-
-kakapo runs the ledger commit in `flake.nix`'s `ledger.url` (a rev since 2026-11-10, so the weekly lock bump never moves it; before that it followed ledger's `main`). Before bumping, make sure that commit's `internal/web/dist` was rebuilt and committed (the Nix build embeds it and never runs Node).
-
-```sh
-sed -i 's|github:salehtl/ledger/[0-9a-f]*|github:salehtl/ledger/<full sha>|' flake.nix
-nix flake lock                               # moves ledger only
-nix flake check                              # same as CI
-git commit -am "ledger: bump to <short rev>"   # on a branch; then push it and open a PR (applied at 04:00 after merge)
-```
-
-To apply now, use the force-upgrade recipe above. The unit copies `ledger.db` to `/var/lib/ledger/backups/before-<build>.db` before a new build first opens it, so there is no manual backup step. Check that the new build is the one running:
-
-```sh
-readlink /proc/$(systemctl show -p MainPID --value ledger)/exe   # ends in ledger-1.0-<rev>/bin/ledger
-curl -s http://127.0.0.1:8090/api/health
-```
 
 ### Release a new hasala version to QA
 
@@ -351,8 +330,8 @@ The `hasala-release` skill (`claude/skills/hasala-release/`) does this end to en
 ### Edit secrets
 
 ```sh
-sops secrets/ledger.yaml         # opens $EDITOR with decrypted view; auto-encrypts on save
-sops -d secrets/ledger.yaml      # decrypt to stdout (one-off inspect)
+sops secrets/ntfy.yaml           # opens $EDITOR with decrypted view; auto-encrypts on save
+sops -d secrets/ntfy.yaml        # decrypt to stdout (one-off inspect)
 ```
 
 On **macOS**, sops looks for the age key at `~/Library/Application Support/sops/age/keys.txt` by default, but ours lives at `~/.config/sops/age/keys.txt`. Set this in `~/.zshrc`:
@@ -399,8 +378,7 @@ export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt"
   Saleh on 2026-10-05). `tailscale serve` can only present the `*.ts.net`
   certificate and only reaches tailnet devices; this exists for devices that
   are not on the tailnet. nginx binds `10.0.0.215`, never `0.0.0.0`, because
-  tailscaled claims the tailnet address's `:443` (it listens there for `tailscale serve`). Never put ledger
-  (tailnet-only by policy) behind it, and never put Grafana in the
+  tailscaled claims the tailnet address's `:443` (it listens there for `tailscale serve`). Never put Grafana in the
   unauthenticated `proxied` set: Grafana's `auth.proxy` trusts a header from
   loopback, which is where nginx connects from. `grafana.salehtl.com`
   (2026-10-06, Saleh's choice) instead has its own vhost behind
@@ -414,7 +392,7 @@ export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt"
 - **Tailnet identity is a user, not a device** (security review of the Hasala
   console, 2026-10-12). tailscale-nginx-auth names the *owner* of the
   connecting tailnet address and refuses only tagged nodes, so every untagged
-  node logged in as `salehtl@github` is "Saleh" to Grafana, ledger,
+  node logged in as `salehtl@github` is "Saleh" to Grafana,
   ntfy and the Hasala console. Two of those nodes are servers: kakapo itself
   (tailscaled's WhoIs answers for its own addresses, and its `ts-input` chain
   accepts `-i lo -s <own tailnet address>`) and homeassistant (third-party
@@ -438,7 +416,7 @@ export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt"
   local user or service on kakapo can still reach the other gated apps
   directly on loopback, without nginx, as before: Grafana on `127.0.0.1:3000`
   trusts a `Tailscale-User-Login` header from loopback (admin as
-  `salehtl@github`), ledger on `127.0.0.1:8090` has no login, and ntfy on
+  `salehtl@github`), and ntfy on
   `127.0.0.1:2586` is open.
 - Secrets live in `secrets/<service>.yaml` (encrypted via sops), one file per service. Edit with `sops secrets/<service>.yaml`; declare each new secret in `modules/sops.nix` with its `sopsFile` and `restartUnits` pointing at any service that consumes it.
 - `users.mutableUsers = false` — never `useradd`/`passwd` on the host; the flake is the only path. `wheelNeedsPassword = false` because `saleh` has no declared password (SSH key is the sole auth factor).

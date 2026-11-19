@@ -52,7 +52,7 @@ KEY_UNITS=(
   prometheus-smartctl-exporter.service prometheus-nvidia-gpu-exporter.service
   immich-server.service immich-machine-learning.service postgresql.service redis-immich.service
   docker.service docker-grampsweb.service docker-grampsweb-celery.service docker-grampsweb-redis.service
-  ledger.service ntfy-sh.service zapret.service
+  ntfy-sh.service zapret.service
   nixos-upgrade.timer nix-gc.timer nixpkgs-age.timer tailscale-key-expiry.timer
 )
 

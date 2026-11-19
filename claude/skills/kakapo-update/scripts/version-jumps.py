@@ -32,7 +32,7 @@ WATCHED = [
     "nginx", "ntfy-sh", "grafana", "prometheus", "redis", "valkey",
     "systemd", "openssh", "tailscale", "iptables", "glibc", "openssl",
     "docker", "containerd", "runc", "zapret", "cloudflared",
-    "sops-install-secrets", "nix", "nss-cacert", "msmtp", "ledger",
+    "sops-install-secrets", "nix", "nss-cacert", "msmtp",
     "hasala", "claude-code",
 ]
 # Matched by exact name only: their prefixes catch unrelated packages

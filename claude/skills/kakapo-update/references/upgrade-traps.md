@@ -6,7 +6,7 @@ broken before (here or upstream), and how to check it after the test.
 
 Contents: nixpkgs itself · Immich · PostgreSQL and its extensions · kernel
 and NVIDIA · AdGuard Home · nginx and the LAN proxy · ntfy · Grafana and
-Prometheus · Tailscale, OpenSSH, systemd, iptables · sops-nix · ledger ·
+Prometheus · Tailscale, OpenSSH, systemd, iptables · sops-nix ·
 Gramps Web images · hasala · claude-code · a NixOS
 release upgrade (26.05 -> 26.11)
 
@@ -185,19 +185,9 @@ node: `tailscale status --json | grep -A4 PrimaryRoutes`.
 
 A change to `sops-install-secrets` can change how secrets reach
 `/run/secrets`. After the test, check that services that read secrets
-(ledger, ntfy, grampsweb, hasala, msmtp) are active and
+(ntfy, grampsweb, hasala, msmtp) are active and
 `sudo ls /run/secrets/` still lists every service directory (names only;
 never print secret contents).
-
-## ledger (`github:salehtl/ledger`, follows nixpkgs)
-
-Moves weekly with `main`. It backs up `ledger.db` before a new build first
-opens it. Read the commits in the compare URL from `lock-diff.py` for schema
-changes. The Nix build embeds `internal/web/dist` and never runs Node
-(CLAUDE.md), so if commits change the frontend source but not
-`internal/web/dist`, the verdict is **Hold: ledger dist not rebuilt**; hold
-`ledger` back as in `failing-bumps.md` section 1. Check
-`curl -s 127.0.0.1:8090/api/health` reports `"db":"ok"`.
 
 ## Gramps Web images (by hand)
 

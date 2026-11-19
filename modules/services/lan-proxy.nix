@@ -495,6 +495,24 @@ in
 
   services.nginx = {
     enable = true;
+    # nginx 1.30.7 fixes the 2026-11 advisories (HTTP/2 flow-control memory
+    # corruption, TLS 1.3 request-body loop, HTTP/2 and HTTP/3 use-after-free,
+    # resolver use-after-free). release-26.05 has it (26309fe5, 2026-11-18)
+    # but the nixos-26.05 channel did not yet when this was written, so build
+    # it from the same tarball until the channel catches up. Once a lock bump
+    # brings 1.30.7 or later, this falls back to pkgs.nginxStable by itself;
+    # then delete the override.
+    package =
+      if lib.versionOlder pkgs.nginxStable.version "1.30.7" then
+        pkgs.nginxStable.overrideAttrs (_: rec {
+          version = "1.30.7";
+          src = pkgs.fetchurl {
+            url = "https://nginx.org/download/nginx-${version}.tar.gz";
+            hash = "sha256-JWW1yDcFDpWPcPsPc8SOK8pFQq00n9NW9G+wxyYQvG4=";
+          };
+        })
+      else
+        pkgs.nginxStable;
     recommendedTlsSettings = true;
     recommendedProxySettings = true;
     recommendedOptimisation = true;

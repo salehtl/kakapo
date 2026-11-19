@@ -68,6 +68,20 @@ in
       key = "acme/cloudflare_token";
     };
 
+    # CLIProxyAPI (modules/services/cliproxyapi.nix): the API key its clients
+    # send, and the management API key. Root-only; the unit reads them through
+    # LoadCredential= when it writes its config at start.
+    secrets."cliproxyapi/api_key" = {
+      sopsFile = ../secrets/cliproxyapi.yaml;
+      key = "cliproxyapi/api_key";
+      restartUnits = [ "cliproxyapi.service" ];
+    };
+    secrets."cliproxyapi/management_key" = {
+      sopsFile = ../secrets/cliproxyapi.yaml;
+      key = "cliproxyapi/management_key";
+      restartUnits = [ "cliproxyapi.service" ];
+    };
+
     # Hasala's QA backend. A secret is declared only while the feature that
     # reads it is on (modules/services/hasala.nix), so restartUnits never
     # names a unit that does not exist. In the file but not declared:

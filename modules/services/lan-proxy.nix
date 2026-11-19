@@ -211,6 +211,14 @@ let
     # own tunnel and must never be listed here, and the console never goes on
     # that tunnel.
     hasala = config.services.hasala.console.port;
+    # T3 Code (modules/services/t3code.nix): coding agents with a shell on
+    # kakapo, as the unprivileged `t3code` user. Its own pairing token is the
+    # second gate.
+    t3 = 3773;
+    # CLIProxyAPI (modules/services/cliproxyapi.nix): Saleh's subscription
+    # logins as an API for his other machines. Its API key is the second
+    # gate; the management API is refused here (serverExtra.cliproxy).
+    cliproxy = config.services.cliproxyapi.settings.server.port;
   };
   tailnetOnlyNames = map (name: "${name}.${zone}") (lib.attrNames tailnetOnly);
 
@@ -260,6 +268,23 @@ let
     # everyone else gets 403 from nginx. serverConfig puts untaggedDeny ahead
     # of these allows.
     hasala = lib.concatMapStrings (ip: "allow ${ip};\n") consoleAllow + "deny all;\n";
+    # The agents' sessions are one long WebSocket each.
+    t3 = ''
+      client_max_body_size 100M;
+      proxy_read_timeout 1d;
+      proxy_send_timeout 1d;
+    '';
+    # Management (/v0, /v8 and the panel) only from kakapo itself, on
+    # 127.0.0.1:8317. Responses stream (SSE), and a long agent turn can
+    # take many minutes. Server-level `if ... return` only, never a location.
+    cliproxy = ''
+      if ($uri ~* ^/+(v[0-9]+/+management|management\.html)) { return 403; }
+      client_max_body_size 100M;
+      proxy_buffering off;
+      proxy_request_buffering off;
+      proxy_read_timeout 1h;
+      proxy_send_timeout 1h;
+    '';
     # Furniture models (up to 200 MB) arrive in one request. Buffered, so
     # midstudy gets the Content-Length it requires; a render waits for fal
     # (up to 300 s) plus keep-room alignment (up to 180 s).

@@ -119,6 +119,27 @@
             imports = [ "${nixpkgs-unstable}/nixos/modules/services/web-apps/immich.nix" ];
           }
           {
+            # CLIProxyAPI's module is not in 26.05 (modules/services/cliproxyapi.nix).
+            # Its `meta.doc` is dropped: 26.05's manual has no redirects for the
+            # doc's anchors, and the manual build fails on them. Drop this
+            # block once on 26.11.
+            imports =
+              let
+                path = "${nixpkgs-unstable}/nixos/modules/services/misc/cliproxyapi.nix";
+                module = import path;
+              in
+              [
+                {
+                  _file = path;
+                  imports = [
+                    (nixpkgs.lib.setFunctionArgs (args: removeAttrs (module args) [ "meta" ]) (
+                      nixpkgs.lib.functionArgs module
+                    ))
+                  ];
+                }
+              ];
+          }
+          {
             nixpkgs.overlays = [
               (final: _prev: {
                 unstable = unstableFor final.stdenv.hostPlatform.system;

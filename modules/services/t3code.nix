@@ -11,6 +11,13 @@
 #          workspace in `work/`. Claude Code uses CLIProxyAPI on loopback
 #          with its API key, so it needs no login here (2026-11-19). Codex
 #          logs in out of band (CLAUDE.md, "T3 Code").
+# GitHub:  a fine-grained token of Saleh's (secrets/t3code.yaml), scoped to
+#          chosen repos with no `statuses` or `workflows` permission, so a
+#          t3 agent can push branches and open PRs but cannot make a PR green
+#          and merge it (write access to kakapo with statuses is root here).
+#          It reaches the unit only through LoadCredential= as GH_TOKEN, and
+#          git uses it through `gh auth git-credential`. Never a copy of
+#          Saleh's own `gh` login or SSH key.
 # Ingress: tailnet only, https://t3.salehtl.com via the LAN proxy's
 #          `tailnetOnly` list (tailscale-nginx-auth), plus t3's own pairing:
 #          a browser must present a one-time pairing token first
@@ -73,6 +80,7 @@ in
       pkgs.gawk
       pkgs.ripgrep
       pkgs.git
+      pkgs.gh
       pkgs.openssh
       pkgs.nix
     ];
@@ -84,10 +92,19 @@ in
       # own. The key comes from the credential below, set in the script.
       ANTHROPIC_BASE_URL = "http://127.0.0.1:${toString config.services.cliproxyapi.settings.server.port}";
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1";
+      # HTTPS git to github.com authenticates with GH_TOKEN (set below), in
+      # the environment rather than a ~/.gitconfig, so the flake owns it.
+      GIT_CONFIG_COUNT = "2";
+      GIT_CONFIG_KEY_0 = "credential.https://github.com.helper";
+      GIT_CONFIG_VALUE_0 = "";
+      GIT_CONFIG_KEY_1 = "credential.https://github.com.helper";
+      GIT_CONFIG_VALUE_1 = "!gh auth git-credential";
     };
     script = ''
       ANTHROPIC_AUTH_TOKEN=$(<"$CREDENTIALS_DIRECTORY/cliproxy-api-key")
       export ANTHROPIC_AUTH_TOKEN
+      GH_TOKEN=$(<"$CREDENTIALS_DIRECTORY/github-token")
+      export GH_TOKEN
       exec ${t3} serve --mode web --host 127.0.0.1 --port ${toString port} --base-dir ${baseDir} --no-browser ${workDir}
     '';
     serviceConfig = {
@@ -96,7 +113,10 @@ in
       StateDirectory = "t3code";
       StateDirectoryMode = "0700";
       WorkingDirectory = workDir;
-      LoadCredential = [ "cliproxy-api-key:${config.sops.secrets."cliproxyapi/api_key".path}" ];
+      LoadCredential = [
+        "cliproxy-api-key:${config.sops.secrets."cliproxyapi/api_key".path}"
+        "github-token:${config.sops.secrets."t3code/github_token".path}"
+      ];
       Restart = "on-failure";
       RestartSec = 5;
 

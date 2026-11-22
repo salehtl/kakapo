@@ -274,13 +274,17 @@ check_smart() {
 
 # --- memory, load, OOM kills
 check_memory() {
-  local total avail pct l1 l5 cpus oom st=OK
+  local total avail pct l1 l5 cpus oom cg st=OK
   total=$(awk '/^MemTotal/{print $2}' /proc/meminfo)
   avail=$(awk '/^MemAvailable/{print $2}' /proc/meminfo)
   pct=$((avail * 100 / total))
   read -r l1 l5 _ </proc/loadavg
   cpus=$(nproc)
-  oom=$(journalctl -k --since -24h -q -o cat --no-pager 2>/dev/null | grep -ci "out of memory: killed")
+  # Host OOM kills (the whole machine ran out) WARN. A unit that hits its own
+  # MemoryMax= logs "Memory cgroup out of memory" instead: that is the limit
+  # doing its job (t3code runs with OOMPolicy=continue), so it is only counted.
+  oom=$(journalctl -k --since -24h -q -o cat --no-pager 2>/dev/null | grep -c "^Out of memory: Killed")
+  cg=$(journalctl -k --since -24h -q -o cat --no-pager 2>/dev/null | grep -c "^Memory cgroup out of memory: Killed")
   # systemd-oomd kills whole cgroups and logs in its own unit, not the kernel log.
   oom=$((oom + $(journalctl -u systemd-oomd --since -24h -q -o cat --no-pager 2>/dev/null | grep -ci "killed")))
   [ "$pct" -lt 10 ] && st=WARN
@@ -288,7 +292,7 @@ check_memory() {
   awk -v l="$l5" -v c="$cpus" 'BEGIN{exit !(l > c)}' && [ "$st" = OK ] && st=WARN
   awk -v l="$l5" -v c="$cpus" 'BEGIN{exit !(l > 2*c)}' && st=FAIL
   [ "$oom" -gt 0 ] && [ "$st" = OK ] && st=WARN
-  emit "$st" memory "available ${pct}% of $((total / 1024)) MiB; load $l1/$l5 on $cpus CPUs; $oom OOM kill(s) in 24h"
+  emit "$st" memory "available ${pct}% of $((total / 1024)) MiB; load $l1/$l5 on $cpus CPUs; $oom host OOM kill(s), $cg unit-limit kill(s) in 24h"
 }
 
 # --- TLS: the wildcard cert nginx actually serves on the LAN address

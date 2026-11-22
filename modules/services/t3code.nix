@@ -59,22 +59,46 @@ let
   # a repository of the Hasala org uses GH_TOKEN_HASALA. Both are set in the
   # unit's script from LoadCredential=.
   ghByOwner = pkgs.writeShellScriptBin "gh" ''
+    # The owner comes only from places that name a repository, never from
+    # free text (a --title or --body can hold "Owner/repo" or a URL):
+    #   1. -R/--repo (OWNER/REPO, HOST/OWNER/REPO or a URL);
+    #   2. `gh api`: the first REST path argument, repos/OWNER/... or orgs/OWNER;
+    #   3. `gh GROUP COMMAND TARGET`: TARGET, the third argument, when it is
+    #      OWNER/REPO or a github.com URL;
+    #   4. GH_REPO, then the `origin` remote of the current directory.
+    own() {
+      local r=$1
+      r=''${r#*://}; r=''${r#git@}; r=''${r#github.com}; r=''${r#[:/]}
+      printf '%s' "''${r%%/*}"
+    }
     owner= prev=
     for a in "$@"; do
-      case "$prev" in -R | --repo) owner=''${a%%/*} ;; esac
+      case "$prev" in -R | --repo) owner=$(own "$a") ;; esac
       case "$a" in
-        --repo=*) r=''${a#--repo=}; owner=''${r%%/*} ;;
-        -R?*) r=''${a#-R}; owner=''${r%%/*} ;;
-        *github.com[/:]*) r=''${a#*github.com}; r=''${r#?}; owner=''${r%%/*} ;;
-        -* | /* | .*) ;;
-        */*) [ -n "$owner" ] || owner=''${a%%/*} ;;
+        --repo=*) owner=$(own "''${a#--repo=}") ;;
+        -R?*) owner=$(own "''${a#-R}") ;;
       esac
       prev=$a
     done
-    if [ -z "$owner" ] && [ -n "''${GH_REPO:-}" ]; then r=''${GH_REPO#github.com/}; owner=''${r%%/*}; fi
+    if [ -z "$owner" ] && [ "''${1:-}" = api ]; then
+      for a in "''${@:2}"; do
+        case "$a" in
+          repos/* | /repos/* | orgs/* | /orgs/*) r=''${a#/}; r=''${r#*/}; owner=''${r%%/*}; break ;;
+        esac
+      done
+      # {owner} is filled in by gh from the current repository.
+      [ "$owner" != "{owner}" ] || owner=
+    elif [ -z "$owner" ]; then
+      case "''${3:-}" in
+        -* | "") ;;
+        *github.com[/:]*) owner=$(own "''${3#*github.com}") ;;
+        */*) owner=''${3%%/*} ;;
+      esac
+    fi
+    [ -n "$owner" ] || [ -z "''${GH_REPO:-}" ] || owner=$(own "$GH_REPO")
     if [ -z "$owner" ]; then
       url=$(${lib.getExe pkgs.git} remote get-url origin 2>/dev/null || true)
-      case "$url" in *github.com[/:]*) r=''${url#*github.com}; r=''${r#?}; owner=''${r%%/*} ;; esac
+      case "$url" in *github.com[/:]*) owner=$(own "''${url#*github.com}") ;; esac
     fi
     case "''${owner,,}" in
       hasala) [ -z "''${GH_TOKEN_HASALA:-}" ] || export GH_TOKEN="$GH_TOKEN_HASALA" ;;
@@ -261,5 +285,11 @@ in
     };
   };
 
-  environment.systemPackages = [ pair ];
+  # Agent shells put /run/current-system/sw/bin before the unit's PATH, so
+  # the wrapper must also be the system's `gh`. It changes nothing for other
+  # users: without GH_TOKEN_HASALA it only runs gh.
+  environment.systemPackages = [
+    pair
+    (lib.hiPrio ghByOwner)
+  ];
 }

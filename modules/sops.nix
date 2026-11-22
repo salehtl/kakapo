@@ -82,6 +82,14 @@ in
       key = "t3code/github_token";
       restartUnits = [ "t3code.service" ];
     };
+    # The same for the Hasala org's repositories (github.com/Hasala): a
+    # fine-grained token has one owner. Its own file, so adding it needed no
+    # decryption of t3code.yaml.
+    secrets."t3code/github_token_hasala" = {
+      sopsFile = ../secrets/t3code-hasala.yaml;
+      key = "t3code/github_token_hasala";
+      restartUnits = [ "t3code.service" ];
+    };
     secrets."cliproxyapi/management_key" = {
       sopsFile = ../secrets/cliproxyapi.yaml;
       key = "cliproxyapi/management_key";

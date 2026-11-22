@@ -21,11 +21,11 @@
 # jq is not on kakapo: gh --jq only. Clones hasala blob-less into $TMPDIR.
 set -euo pipefail
 kakapo=salehtl/kakapo
-hasala=salehtl/hasala
+hasala=Hasala/hasala
 paths=(server ':!server/oracle' infra/qa/nix ':!infra/qa/nix/tests' infra/qa/db flake.nix flake.lock)
 
 pinned=$(gh api "repos/$kakapo/contents/flake.nix" --jq .content | base64 -d |
-  grep -oP 'github:salehtl/hasala/\K[0-9a-f]{40}')
+  grep -oP 'github:[A-Za-z0-9-]+/hasala/\K[0-9a-f]{40}')
 printf 'pinned\t%s\n' "$pinned"
 printf 'running\t%s\n' "$(systemctl show -p ExecStart --value hasalad.service 2>/dev/null |
   grep -o '/nix/store/[^ ;]*hasalad[^ ;/]*' | head -1 || echo unknown)"
@@ -59,7 +59,7 @@ git log --format='commit%x09%h %s' "$pinned..$target" -- "${paths[@]}"
 
 pr=$(gh pr list --repo "$kakapo" --head hasala-release --state open --json number --jq '.[0].number // ""')
 if [ -n "$pr" ]; then
-  rev=$(gh pr diff "$pr" --repo "$kakapo" | grep -oP '^\+.*github:salehtl/hasala/\K[0-9a-f]{40}' | head -1)
+  rev=$(gh pr diff "$pr" --repo "$kakapo" | grep -oP '^\+.*github:[A-Za-z0-9-]+/hasala/\K[0-9a-f]{40}' | head -1)
   printf 'pr\t%s %s\n' "$pr" "${rev:-?}"
 else
   printf 'pr\tnone\n'

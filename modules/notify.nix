@@ -46,7 +46,7 @@ in
   # | healthchecks.io      | kakapo stops reporting (outside kakapo)    | its own   |
   #
   # Hasala's own notices (hasala-health findings, early-access requests)
-  # come from its module in github:salehtl/hasala, in its own format.
+  # come from its module in github:Hasala/hasala, in its own format.
   #
   # Mail goes out through iCloud SMTP as the recipient, so no new account is
   # needed. The password is an Apple app-specific password, never the Apple ID

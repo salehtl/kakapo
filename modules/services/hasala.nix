@@ -1,4 +1,4 @@
-# Hasala: the QA backend for the Hasala iOS beta (github.com/salehtl/hasala).
+# Hasala: the QA backend for the Hasala iOS beta (github.com/Hasala/hasala).
 # The module is that flake's nixosModules.default (infra/qa/nix/module.nix
 # there); this file is kakapo's instance of it, as infra/qa/HOST-PR.md ("PR B")
 # describes.

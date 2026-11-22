@@ -9,6 +9,7 @@
     ./hardware.nix
     ../../modules/base.nix
     ../../modules/ca-trust.nix
+    ../../modules/ci-runner.nix
     ../../modules/server.nix
     ../../modules/claude.nix
     ../../modules/guarded-upgrade.nix

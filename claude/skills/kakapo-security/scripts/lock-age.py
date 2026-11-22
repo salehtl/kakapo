@@ -4,7 +4,7 @@
 Usage: python3 -I lock-age.py <repo>/flake.lock [days-threshold, default 21]
 
 Only the root inputs matter (nested nodes such as `nixpkgs` under ledger are
-not what the host is built from). 21 days matches the `nixpkgs-age` alert in
+not what the host is built from). 21 days matches the `nixpkgs_age` FAIL in check.sh (health-check) in
 modules/notify.nix. Exit 1 if a package-set input is older than the
 threshold: `nixpkgs` (the host) or `nixpkgs-unstable` (Immich, exposed on
 photos.salehtl.com).

@@ -1,6 +1,6 @@
 ---
 name: kakapo-update
-description: Review a dependency bump for the kakapo NixOS host and give it a risk verdict. Use this whenever the task involves the weekly "flake: weekly flake.lock bump" PR (branch `flake-lock-bump`, label `dependencies`), a `nix flake update` of nixpkgs, nixpkgs-unstable, sops-nix, ledger or treefmt-nix, a Gramps Web image digest bump, a hasala release PR labelled `needs-review`, or any "is this update safe to merge?" question about kakapo. Also use it when the update-flake-lock workflow fails, when a bump PR is red or stale against master, when `nixpkgs-age` mails that nixpkgs is over 21 days old, or when `nixos-upgrade.service` fails because of the lock. Covers building the bump, diffing closures against the running system, finding major version jumps (Immich, PostgreSQL, kernel, NVIDIA, AdGuard, nginx, ntfy), reading changelogs for migrations and data-loss traps, guarded-testing, and posting the verdict. It never merges.
+description: Review a dependency bump for the kakapo NixOS host and give it a risk verdict. Use this whenever the task involves the weekly "flake: weekly flake.lock bump" PR (branch `flake-lock-bump`, label `dependencies`), a `nix flake update` of nixpkgs, nixpkgs-unstable, sops-nix, ledger or treefmt-nix, a Gramps Web image digest bump, a hasala release PR labelled `needs-review`, or any "is this update safe to merge?" question about kakapo. Also use it when the update-flake-lock workflow fails, when a bump PR is red or stale against master, when the `nixpkgs_age` health check alerts that nixpkgs is over 21 days old, or when `nixos-upgrade.service` fails because of the lock. Covers building the bump, diffing closures against the running system, finding major version jumps (Immich, PostgreSQL, kernel, NVIDIA, AdGuard, nginx, ntfy), reading changelogs for migrations and data-loss traps, guarded-testing, and posting the verdict. It never merges.
 ---
 
 # kakapo-update: review a version bump
@@ -339,5 +339,5 @@ and the dump is on the same disk as the photos."
 - `references/upgrade-traps.md` - per component: where the changelog is,
   what breaks, how to check it. Read it in step 5.
 - `references/failing-bumps.md` - the workflow failed, the PR is red or
-  stale, or `nixos-upgrade.service` / `nixpkgs-age` is failing. Read it when
+  stale, or `nixos-upgrade.service` is failing or the `nixpkgs_age` check alerted. Read it when
   any of those is true.

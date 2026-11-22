@@ -5,7 +5,7 @@ Find out which one it is before fixing anything. Every fix is a PR on your
 own branch (kakapo-change); never push to `flake-lock-bump` or `master`.
 
 Contents: 1. the weekly workflow failed (no PR) · 2. the bump PR is red or
-stale · 3. `nixos-upgrade.service` is failing · 4. `nixpkgs-age` mailed but
+stale · 3. `nixos-upgrade.service` is failing · 4. `nixpkgs_age` alerted but
 nothing failed
 
 ## 1. The weekly workflow failed, so no PR was opened
@@ -102,9 +102,9 @@ journalctl -u nixos-upgrade.service --since -7d --no-pager | grep -iE 'error|fai
 - **Network** (GitHub or cache unreachable at 04:00): one failed night is
   harmless; check the next run before acting.
 
-## 4. `nixpkgs-age` mailed, but nothing is failing
+## 4. `nixpkgs_age` alerted, but nothing is failing
 
-`nixpkgs-age` (daily 09:00) fails when the running nixpkgs is over 21 days
+`health-check`'s `nixpkgs_age` check (every 15 min) fails when the running nixpkgs is over 21 days
 old. With no failed upgrade and no failed workflow, it means the bump PRs
 are not being merged. Check `cat /run/current-system/nixos-version` (the
 third field is the nixpkgs date), list the open bump PR, run the review in

@@ -169,18 +169,17 @@ in
   # query runs over `lo` (kakapo asking its own address never touches the NIC
   # or the interface-scoped firewall), so it is paired with the parts of the
   # LAN path a loopback query skips: 10.0.0.215 on the LAN NIC, and the rule
-  # opening :53 there. Emails after two consecutive failures and once on
-  # recovery, not every minute in between; a mail that fails to send is
-  # retried on the next run. kakapo resolves independently of AdGuard, so the
-  # email still goes out while AdGuard is down.
+  # opening :53 there. Alerts (kakapo-alert, level fail: push and mail) after
+  # two consecutive failures and once on recovery, not every minute in
+  # between; an alert that is not delivered is retried on the next run.
+  # kakapo resolves independently of AdGuard, so the mail still goes out while
+  # AdGuard is down. health-check leaves its `dns` check to this unit.
   systemd.services.dns-health = {
     description = "Check that AdGuard answers DNS for the house";
     path = [
       pkgs.dnsutils
       pkgs.gnugrep
       pkgs.coreutils
-      pkgs.msmtp
-      pkgs.curl
       pkgs.iproute2
       config.networking.firewall.package
       config.systemd.package
@@ -192,13 +191,12 @@ in
     script = ''
       failing=/var/lib/dns-health/failing
       alerted=/var/lib/dns-health/alerted
-      # Phone push (modules/services/ntfy.nix) and email; the return value is
-      # the email's, which decides whether the alert is retried.
-      mail() {
-        curl -fsS --max-time 10 -o /dev/null -H "Title: [${config.networking.hostName}] $1" -H "Priority: high" \
-          --data-binary "$2" http://127.0.0.1:2586/kakapo || echo "ntfy push failed" >&2
-        printf 'To: salehtl@icloud.com\nFrom: salehtl@icloud.com\nSubject: [${config.networking.hostName}] %s\n\n%s\n' "$1" "$2" | msmtp -t
-      }
+      alert=${
+        pkgs.callPackage ../../pkgs/kakapo-alert {
+          inherit (config.networking) hostName;
+          mailTo = "salehtl@icloud.com";
+        }
+      }/bin/kakapo-alert
       problem=
       if ! ip -4 -o addr show dev ${lanInterface} | grep -q ' 10\.0\.0\.215/'; then
         problem="10.0.0.215 is not on ${lanInterface}"
@@ -210,10 +208,10 @@ in
       if [ -z "$problem" ]; then
         rm -f "$failing"
         if [ -e "$alerted" ]; then
-          if mail "DNS recovered" "AdGuard on 10.0.0.215 is answering the house again."; then
+          if echo "AdGuard on 10.0.0.215 answers the house again." | $alert ok dns "DNS answers again" --mail; then
             rm "$alerted"
           else
-            echo "recovery mail failed; retrying next run" >&2
+            echo "recovery alert not delivered; retrying next run" >&2
           fi
         fi
       else
@@ -221,15 +219,18 @@ in
         echo "$n" > "$failing"
         echo "$problem (failure $n in a row)" >&2
         if [ "$n" -ge 2 ] && [ ! -e "$alerted" ]; then
-          if mail "DNS is DOWN for the house" "$problem, $n checks in a row.
+          if $alert fail dns "DNS is down for the house" <<EOF
+      $problem, $n checks in a row.
 
-      Quickest recovery: sudo systemctl restart adguardhome
-      Or point UniFi DHCP DNS back at 1.1.1.1 (Settings > Networks > Default).
+      Fastest recovery: sudo systemctl restart adguardhome
+      Or set the UniFi DHCP DNS back to 1.1.1.1 (Settings > Networks > Default).
 
-      $(systemctl status --no-pager adguardhome 2>&1 | head -20)"; then
+      $(systemctl status --no-pager adguardhome 2>&1 | head -20)
+      EOF
+          then
             touch "$alerted"
           else
-            echo "alert mail failed; retrying next run" >&2
+            echo "alert not delivered; retrying next run" >&2
           fi
         fi
       fi

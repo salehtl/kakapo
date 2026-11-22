@@ -368,7 +368,7 @@ gh pr list -R salehtl/kakapo --label dependencies --state open
 ```
 
 `nixpkgs` or `nixpkgs-unstable` over 21 days old is **High** (matches the
-`nixpkgs-age` alert; unstable builds Immich, which serves
+`nixpkgs_age` alert (health-check); unstable builds Immich, which serves
 `photos.salehtl.com` to the LAN). Point at the open weekly bump PR if there
 is one (kakapo-update reviews it).
 Also check `permittedInsecurePackages` and `knownVulnerabilities` overrides:

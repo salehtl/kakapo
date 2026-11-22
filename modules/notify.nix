@@ -1,6 +1,13 @@
 { config, pkgs, ... }:
 let
   to = "salehtl@icloud.com";
+  # Every host alert goes through this (pkgs/kakapo-alert: format, levels,
+  # channels). dns-health builds the same package.
+  alert = pkgs.callPackage ../pkgs/kakapo-alert {
+    inherit (config.networking) hostName;
+    mailTo = to;
+  };
+  alertExe = "${alert}/bin/kakapo-alert";
   checkScript = ../claude/skills/kakapo-health/scripts/check.sh;
   # What check.sh needs on PATH (its header lists the same).
   checkPath = [
@@ -25,19 +32,27 @@ let
   ];
 in
 {
-  # Email when the 04:00 autoUpgrade fails. Nothing else watches it: a lock
-  # that needed updating broke it from 2026-06-01 to 2026-10-03 — 250 failed
-  # runs — and nobody knew. CI cannot catch activation-time failures either, so
-  # the alert has to come from the host.
+  # kakapo's alerts. One fault gives one alert, and every alert goes through
+  # kakapo-alert (pkgs/kakapo-alert): title "[kakapo] LEVEL SOURCE: SUBJECT",
+  # ntfy topic `kakapo`, and mail only for `fail` (and its recovery).
+  #
+  # | Source               | Alerts on                                  | Level     |
+  # |----------------------|--------------------------------------------|-----------|
+  # | notify-failure@      | a unit with onFailure fails (nixos-upgrade,| fail      |
+  # |                      | spoof check, Hasala, backup, the alerters) |           |
+  # | dns-health (adguard) | DNS down 2 min in a row; recovery          | fail / ok |
+  # | health-check         | any other check enters/leaves WARN or FAIL | warn/fail/ok |
+  # | health-report        | daily 09:00 status, held bump PRs          | info/warn |
+  # | healthchecks.io      | kakapo stops reporting (outside kakapo)    | its own   |
+  #
+  # Hasala's own notices (hasala-health findings, early-access requests)
+  # come from its module in github:salehtl/hasala, in its own format.
   #
   # Mail goes out through iCloud SMTP as the recipient, so no new account is
   # needed. The password is an Apple app-specific password, never the Apple ID
   # password. /etc/msmtprc is world-readable but holds only `passwordeval`; the
-  # secret itself is root-only, so only root can send — which is all the
-  # notifier needs.
-  #
+  # secret itself is root-only (modules/sops.nix), so only root can send.
   # Outbound 587 only. Nothing here listens, so the firewall is unchanged.
-  # The password is declared in modules/sops.nix.
 
   programs.msmtp = {
     enable = true;
@@ -53,124 +68,57 @@ in
     };
   };
 
-  # Template so any unit can opt in with
-  # `onFailure = [ "notify-failure@%n.service" ];` — %n is the failing unit.
+  # notify-failure@<unit>: the alert for a failed unit. Any unit opts in with
+  # `onFailure = [ "notify-failure@%n.service" ];` (%n is the failing unit).
+  # The push shows the last log lines; the mail adds the status and the last
+  # 100 journal lines.
   systemd.services."notify-failure@" = {
-    description = "Email ${to} that %i failed";
+    description = "Alert Saleh that %i failed";
     serviceConfig.Type = "oneshot";
-    path = [
-      pkgs.msmtp
-      pkgs.curl
-      config.systemd.package
-    ];
+    path = [ config.systemd.package ];
     scriptArgs = "%i";
     script = ''
       unit="$1"
-      # Phone push first (modules/services/ntfy.nix); the email below goes out
-      # whether or not it worked.
-      curl -fsS --max-time 10 -o /dev/null \
-        -H "Title: [${config.networking.hostName}] $unit failed" -H "Priority: high" -H "Tags: warning" \
-        --data-binary "$(journalctl -u "$unit" -n 10 --no-pager -o cat)" \
-        http://127.0.0.1:2586/kakapo || echo "ntfy push failed" >&2
+      desc=$(systemctl show -p Description --value "$unit" 2>/dev/null || true)
       {
-        printf 'To: %s\nFrom: %s\nSubject: [%s] %s failed\n\n' \
-          "${to}" "${to}" "${config.networking.hostName}" "$unit"
+        printf 'Last log lines:\n'
+        journalctl -u "$unit" -n 10 --no-pager -o cat
+        printf '\n--- status ---\n'
         systemctl status --full --no-pager "$unit" || true
         printf '\n--- last 100 journal lines ---\n'
         journalctl -u "$unit" -n 100 --no-pager -o short-iso
-      } | msmtp -t
+      } | ${alertExe} fail "''${unit%.service}" "failed''${desc:+ ($desc)}"
     '';
   };
 
   systemd.services.nixos-upgrade.onFailure = [ "notify-failure@%n.service" ];
 
-  # Email when the running nixpkgs is more than three weeks old. The upgrade
-  # alert above only fires when nixos-upgrade fails; it stays silent when the
-  # upgrade succeeds but has nothing new to build — the weekly lock workflow
-  # failing, or its PR sitting unmerged. Checking the age of what is actually
-  # running catches every one of those. The date comes from the nixpkgs
-  # version this system was built from (26.05.YYYYMMDD.rev).
-  systemd.services.nixpkgs-age = {
-    description = "Fail if the running nixpkgs is more than 21 days old";
-    onFailure = [ "notify-failure@%n.service" ];
-    serviceConfig.Type = "oneshot";
-    script = ''
-      built=$(cut -d. -f3 <<< "$(< /run/current-system/nixos-version)")
-      age=$(( ($(date +%s) - $(date -d "$built" +%s)) / 86400 ))
-      echo "running nixpkgs from $built, $age days old"
-      if [ "$age" -gt 21 ]; then
-        echo "flake.lock has not reached this host in $age days: check the update-flake-lock workflow, its open PR, and nixos-upgrade.service"
-        exit 1
-      fi
-    '';
-  };
-  systemd.timers.nixpkgs-age = {
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnCalendar = "09:00";
-      Persistent = true;
-    };
-  };
-
-  # Email when kakapo's Tailscale node key is within three weeks of expiring.
-  # It lapses 180 days after login unless key expiry is disabled for kakapo in
-  # the admin console (Machines -> kakapo -> Disable key expiry), which is
-  # out-of-band. At expiry tailscaled drops every peer and route: Tailscale
-  # SSH, the 10.0.0.215/32 route, the exit node and tailscale-nginx-auth.
-  systemd.services.tailscale-key-expiry = {
-    description = "Fail if kakapo's Tailscale node key expires within 21 days";
-    onFailure = [ "notify-failure@%n.service" ];
-    path = [
-      config.services.tailscale.package
-      pkgs.jq
-    ];
-    serviceConfig.Type = "oneshot";
-    script = ''
-      expiry=$(tailscale status --json | jq -r '.Self.KeyExpiry // empty')
-      if [ -z "$expiry" ]; then
-        echo "key expiry is disabled for this node"
-        exit 0
-      fi
-      days=$(( ($(date -d "$expiry" +%s) - $(date +%s)) / 86400 ))
-      echo "Tailscale node key expires $expiry, in $days days"
-      if [ "$days" -lt 21 ]; then
-        echo "Disable key expiry for kakapo in the Tailscale admin console: Machines -> kakapo -> Disable key expiry"
-        exit 1
-      fi
-    '';
-  };
-  systemd.timers.tailscale-key-expiry = {
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnCalendar = "09:00";
-      Persistent = true;
-    };
-  };
-
-  # Push to ntfy when kakapo's health changes. Runs the kakapo-health skill's
-  # own check (claude/skills/kakapo-health/scripts/check.sh), so what Claude
-  # reports on request and what the phone is told are the same checks. It
-  # runs --offline: GitHub is not polled every quarter hour, so the master,
-  # PR and master-CI checks stay with the skill.
+  # health-check: every 15 minutes, the kakapo-health skill's own check
+  # (claude/skills/kakapo-health/scripts/check.sh --offline), so what Claude
+  # reports on request and what the phone is told are the same checks.
   #
-  # The `generation` check is left out of alerts: it WARNs whenever a
-  # guarded-test activation is live, which is routine while a PR is tested.
+  # One alert per change: it alerts when a check enters WARN or FAIL, changes
+  # between them, or all checks are OK again. It compares status and check
+  # name only, not the detail text, which carries live numbers.
+  #
+  # It leaves out what another alert already sends, so one fault gives one
+  # alert:
+  #   - dns: dns-health (modules/services/adguard.nix) alerts within 2 minutes;
+  #   - generation: WARNs during every guarded test, which is routine;
+  #   - failed_units, upgrade "last result", hasala "failed:": a unit with
+  #     notify-failure@ has already alerted for itself.
+  # The daily health-report still lists everything.
   #
   # Every run also pings healthchecks.io, the one alert path that does not
-  # depend on kakapo: ntfy and the mail above both run here, so a dead host,
-  # disk or uplink sends nothing. healthchecks.io alerts when the pings stop
-  # (set the check's period to 15 min and its grace to 30 min), and on a /fail
-  # ping, which a FAIL or a check that cannot run sends, so the worst states
-  # also reach Saleh by a second path when ntfy itself is down.
+  # depend on kakapo: ntfy and the mail both run here, so a dead host, disk or
+  # uplink sends nothing. healthchecks.io alerts when the pings stop (period
+  # 15 min, grace 30 min), and on a /fail ping, which a FAIL or a check that
+  # cannot run sends, with the full check output.
   #
-  # It pushes only when the set of WARN/FAIL checks (status and name, not
-  # their live detail text) changes, and once more when
-  # everything is back to OK, so a lasting problem alerts once, not every run.
-  # The unit itself succeeds on WARN/FAIL (exit 1/2), or notify-failure@ would
-  # send a second alert and failed_units would flag this unit; it fails, and
-  # mails, only when the check cannot run at all.
+  # The unit succeeds on WARN/FAIL (check.sh exit 1/2); it fails, and so
+  # alerts through notify-failure@, only when the check cannot run at all.
   systemd.services.health-check = {
-    description = "Push kakapo health changes to ntfy";
+    description = "kakapo health checks, alert on change";
     onFailure = [ "notify-failure@%n.service" ];
     path = checkPath;
     serviceConfig = {
@@ -197,33 +145,46 @@ in
       fi
       summary=$(printf '%s\n' "$out" | grep -Ev '^(OK|SKIP)'$'\t' | tr '\t' ' ')
       if [ "$rc" -eq 2 ]; then hc_ping /fail "$summary"; else hc_ping "" "$summary"; fi
-      now=$(printf '%s\n' "$out" | grep -E '^(WARN|FAIL)'$'\t' | grep -v $'\tgeneration\t' || true)
-      # Compare only status and check name: the detail text carries live
-      # numbers (free memory, load), so comparing it re-pushed the same
-      # problem every 15 minutes.
-      key=$(printf '%s\n' "$now" | cut -f1,2)
+
+      # The WARN/FAIL lines that no other alert covers (see above).
+      covered() { systemctl show -p OnFailure --value "$1" 2>/dev/null | grep -q 'notify-failure@'; }
+      now=$(printf '%s\n' "$out" | while IFS=$'\t' read -r st name detail; do
+        case "$st" in WARN | FAIL) ;; *) continue ;; esac
+        case "$name" in
+          dns | generation) continue ;;
+          upgrade) [[ $detail == "last nixos-upgrade result="* ]] && continue ;;
+          hasala) [[ $detail == "failed: "* ]] && continue ;;
+          failed_units)
+            left=
+            for u in $detail; do covered "$u" || left="$left $u"; done
+            [ -z "$left" ] && continue
+            detail="''${left# }" ;;
+        esac
+        printf '%s\t%s\t%s\n' "$st" "$name" "$detail"
+      done)
+      # Status and name; failed_units also by its unit list, which has no
+      # live numbers.
+      key=$(printf '%s\n' "$now" | awk -F'\t' 'NF { print $1 "\t" $2 ($2 == "failed_units" ? "\t" $3 : "") }')
       before=$(cat "$state" 2>/dev/null || true)
       [ "$key" = "$before" ] && exit 0
-      printf '%s' "$key" >"$state"
 
+      body=$(printf '%s\n' "$now" | awk -F'\t' 'NF { print $1 " " $2 ": " $3 }')
+      names=$(printf '%s\n' "$now" | awk -F'\t' 'NF { print $2 }' | paste -sd, - | sed 's/,/, /g')
       if [ -z "$now" ]; then
-        title="[${config.networking.hostName}] health: all OK"
-        prio=default tags=white_check_mark body="All checks are OK again."
+        # Mail the recovery only when the problem was mailed (a FAIL).
+        alert=(ok health "all checks OK")
+        printf '%s\n' "$before" | grep -q '^FAIL' && alert+=(--mail)
+        body="All checks are OK again."
       elif printf '%s\n' "$now" | grep -q '^FAIL'; then
-        title="[${config.networking.hostName}] health: FAIL"
-        prio=high tags=rotating_light body=$now
+        alert=(fail health "$names")
       else
-        title="[${config.networking.hostName}] health: WARN"
-        prio=default tags=warning body=$now
+        alert=(warn health "$names")
       fi
-      curl -fsS --max-time 10 -o /dev/null \
-        -H "Title: $title" -H "Priority: $prio" -H "Tags: $tags" \
-        --data-binary "$(printf '%s\n' "$body" | tr '\t' ' ')" \
-        http://127.0.0.1:2586/kakapo || {
-        # Not delivered: forget the state so the next run tries again.
-        rm -f "$state"
-        echo "ntfy push failed" >&2
-      }
+      if printf '%s\n' "$body" | ${alertExe} "''${alert[@]}"; then
+        printf '%s' "$key" >"$state"
+      else
+        echo "alert not delivered; the next run tries again" >&2
+      fi
     '';
   };
   systemd.timers.health-check = {
@@ -234,14 +195,20 @@ in
     };
   };
 
-  # Daily health report to ntfy at 09:00, whatever the state: one push with
-  # the verdict, the facts worth a glance (upgrade, backups, disk, TLS), open
-  # PRs and master CI. health-check above alerts on changes; this is the
-  # "still fine" signal. It runs check.sh online, so the generation check also
-  # compares with master. root has no gh login, so PRs and CI come from the
-  # public GitHub API; a PR from a fork shows by number only (untrusted text).
+  # health-report: the daily status at 09:00, whatever the state: the
+  # verdict, every WARN/FAIL (also the ones health-check leaves to other
+  # alerts), the facts worth a glance, open PRs and master CI. It runs
+  # check.sh online, so the generation check also compares with master.
+  #
+  # It also names a bump PR that did not merge itself (update-flake-lock.yml
+  # holds it with `needs-review`), so nixpkgs or Claude Code does not drift.
+  # Level `info` when nothing needs Saleh, else `warn`; never mailed.
+  #
+  # root has no gh login, so PRs and CI come from the public GitHub API. A PR
+  # from a fork shows by number only, and a bump PR counts only from this
+  # repo's own branch (PR titles and fork branch names are untrusted).
   systemd.services.health-report = {
-    description = "Daily kakapo health report to ntfy";
+    description = "Daily kakapo health report";
     onFailure = [ "notify-failure@%n.service" ];
     path = checkPath ++ [ pkgs.jq ];
     serviceConfig = {
@@ -258,30 +225,39 @@ in
         echo "check.sh exited $rc" >&2
         exit 1
       fi
-      summary=$(printf '%s\n' "$out" | awk -F'\t' '$1 == "SUMMARY" { print $2 " (" $3 ")" }')
-      problems=$(printf '%s\n' "$out" | grep -E '^(WARN|FAIL)'$'\t' | cut -f2- | tr '\t' ' ' || true)
+      verdict=$(printf '%s\n' "$out" | awk -F'\t' '$1 == "SUMMARY" { print $2 }')
+      problems=$(printf '%s\n' "$out" | grep -E '^(WARN|FAIL)'$'\t' | cut -f1- | tr '\t' ' ' | sed 's/ /: /2' || true)
       facts=$(printf '%s\n' "$out" | awk -F'\t' '$2 ~ /^(upgrade|backups|disk|tls|nixpkgs_age)$/ { print $2 ": " $3 }')
-      prs=$(curl -fsS --max-time 15 "$api/pulls?state=open&per_page=30" | jq -r '.[] |
-        if .head.repo.owner.login != "salehtl" then "#\(.number) [external]"
-        else "#\(.number) \(.title)" end') || prs="(GitHub API failed)"
+      held=
+      if pulls=$(curl -fsS --max-time 15 "$api/pulls?state=open&per_page=30"); then
+        prs=$(printf '%s' "$pulls" | jq -r '.[] |
+          if .head.repo.full_name != "salehtl/kakapo" then "#\(.number) [external]"
+          else "#\(.number) \(.title)" end')
+        held=$(printf '%s' "$pulls" | jq -r --argjson now "$(date +%s)" '.[]
+          | select(.head.repo.full_name == "salehtl/kakapo" and (.head.ref == "flake-lock-bump" or .head.ref == "app-bump"))
+          | (($now - (.created_at | fromdateiso8601)) / 86400 | floor) as $d
+          | select($d >= 1)
+          | "bump PR #\(.number) (\(.head.ref)) did not merge itself; open \($d) day(s). Review it (kakapo-update), then merge it."')
+      else
+        prs="(GitHub API failed)"
+      fi
       ci=$(curl -fsS --max-time 15 "$api/commits/master/status" |
         jq -r '(if .total_count == 0 then "none" else .state end) + " " + .sha[:7]') || ci="(GitHub API failed)"
 
-      case "$rc" in
-        0) prio=low tags=white_check_mark ;;
-        1) prio=default tags=warning ;;
-        *) prio=high tags=rotating_light ;;
-      esac
+      level=info
+      { [ -n "$problems" ] || [ -n "$held" ]; } && level=warn
       body=$(
-        [ -n "$problems" ] && printf 'Needs attention:\n%s\n\n' "$problems"
+        if [ -n "$problems$held" ]; then
+          printf 'Needs attention:\n'
+          [ -n "$problems" ] && printf '%s\n' "$problems"
+          [ -n "$held" ] && printf '%s\n' "$held"
+          printf '\n'
+        fi
         printf '%s\n\n' "$facts"
         printf 'master CI: %s\n' "$ci"
         printf 'Open PRs: %s\n' "''${prs:-none}"
       )
-      curl -fsS --max-time 10 -o /dev/null \
-        -H "Title: [${config.networking.hostName}] daily: $summary" -H "Priority: $prio" -H "Tags: $tags" \
-        --data-binary "$body" \
-        http://127.0.0.1:2586/kakapo
+      printf '%s\n' "$body" | ${alertExe} "$level" report "daily: $verdict" --click https://github.com/salehtl/kakapo/pulls
     '';
   };
   systemd.timers.health-report = {
@@ -292,53 +268,7 @@ in
     };
   };
 
-  # Reminder about a bump PR that did not merge itself (update-flake-lock.yml
-  # opens flake-lock-bump weekly and app-bump daily, and since 2026-11-19
-  # merges each unless it holds it with `needs-review`): one push a day at
-  # 18:00 per open bump PR, so nixpkgs or Claude Code does not drift. Only a
-  # same-repo PR counts, and the text is fixed: a fork could name its branch
-  # the same, and PR titles are untrusted. Quiet when there is none or GitHub
-  # cannot be reached; the daily report shows the PR list anyway.
-  systemd.services.bump-reminder = {
-    description = "Remind Saleh about a bump PR that did not merge itself";
-    onFailure = [ "notify-failure@%n.service" ];
-    path = [
-      pkgs.curl
-      pkgs.jq
-      pkgs.coreutils
-    ];
-    serviceConfig.Type = "oneshot";
-    script = ''
-      set -u
-      for branch in flake-lock-bump app-bump; do
-        prs=$(curl -fsS --max-time 15 \
-          "https://api.github.com/repos/salehtl/kakapo/pulls?state=open&head=salehtl:$branch") || {
-          echo "GitHub API failed; no reminder" >&2
-          exit 0
-        }
-        pr=$(printf '%s' "$prs" | jq -r '[.[] | select(.head.repo.full_name == "salehtl/kakapo")][0] // empty
-          | "\(.number) \(.created_at)"')
-        if [ -z "$pr" ]; then
-          echo "$branch: no open bump PR"
-          continue
-        fi
-        read -r n created <<<"$pr"
-        days=$(( ($(date +%s) - $(date -d "$created" +%s)) / 86400 ))
-        url="https://github.com/salehtl/kakapo/pull/$n"
-        echo "$branch: bump PR #$n open for $days day(s)"
-        curl -fsS --max-time 10 -o /dev/null \
-          -H "Title: [${config.networking.hostName}] package updates held (#$n)" \
-          -H "Priority: default" -H "Tags: package" -H "Click: $url" \
-          --data-binary "Bump PR #$n ($branch) has been open for $days day(s) and did not merge itself. Ask an agent to review it (kakapo-update), then merge it: $url" \
-          http://127.0.0.1:2586/kakapo
-      done
-    '';
-  };
-  systemd.timers.bump-reminder = {
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnCalendar = "18:00";
-      Persistent = true;
-    };
-  };
+  # For agents and Saleh, to send an alert by hand (root only: the mail
+  # password is root-only).
+  environment.systemPackages = [ alert ];
 }

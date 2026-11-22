@@ -245,10 +245,29 @@ contractions, technical names in backticks. For example:
 
 Run step 8 before you send it, so the message can say `check` and `build` pass.
 
-### 8. Run CI on kakapo
+### 8. Wait for CI on kakapo
 
 GitHub runs no CI for this repo (`check.yml` was removed on 2026-10-27: a cold
-runner took 30-40 minutes). CI runs here, on the pushed commit:
+runner took 30-40 minutes). CI runs here, on the pushed commit, and starts by
+itself: `kakapo-ci.service` polls GitHub every 8 s and runs `ci-local.sh` on
+each new PR head. Watch it:
+
+```sh
+until [ -n "$(gh pr view <n> --repo salehtl/kakapo --json statusCheckRollup --jq '.statusCheckRollup[]')" ]; do sleep 3; done
+gh pr checks <n> --repo salehtl/kakapo --watch --interval 5
+```
+
+(`--watch` exits at once while the commit has no status yet; the first one
+comes within about 10 s of the push.)
+
+`ci-local.sh` clones the PR's head commit from GitHub, runs `check` (lock in
+sync + `nix flake check`, evaluation and formatting) and `build` (the full
+toplevel), and posts both as commit statuses. The master ruleset requires both,
+so a PR cannot merge until both pass. A run takes about 40 s. Each push gets its
+own run; a push kills the run on the old head.
+
+If no `check` status appears within a minute, look at `journalctl -u
+kakapo-ci -n 50`, and run it by hand:
 
 ```sh
 ~/.claude/skills/kakapo-change/scripts/ci-local.sh <n>
@@ -256,15 +275,9 @@ runner took 30-40 minutes). CI runs here, on the pushed commit:
 
 Run the installed copy (from deployed `master`), never the one in your clone: a
 PR must not be able to change the script that passes it. It refuses fork PRs.
-It clones the PR's head commit from GitHub, runs `check` (lock in sync +
-`nix flake check`, evaluation and formatting) and `build` (the full toplevel),
-and posts both as commit statuses. The master ruleset requires both, so a PR
-cannot merge until both pass. Most of the build is already in the host's store,
-so a run takes minutes. Run it again after each push: a status covers only the
-commit it ran on.
 
-- **Real failure:** the script prints the last 40 log lines. Fix on your branch,
-  rebuild, re-test if what the host would run changed, push, run it again.
+- **Real failure:** the run prints the last 40 log lines (`journalctl -u kakapo-ci`). Fix on your branch,
+  rebuild, re-test if what the host would run changed, and push: CI runs again.
   Typical causes: unformatted Nix (`nix fmt`), a lock out of sync with
   `flake.nix`, an assertion, a hash mismatch.
 - **Fetch or network failure** (nothing to do with your diff): run it again once.
@@ -290,7 +303,7 @@ scripts/guarded-test.sh "$out"            # again, if what the host would run ch
 git push --force-with-lease origin HEAD
 ```
 
-Then run CI again (step 8). Conflicts are mostly in `CLAUDE.md`, package lists and
+Then wait for CI again (step 8). Conflicts are mostly in `CLAUDE.md`, package lists and
 `flake.lock`. The ruleset does not require the branch to be up to date with
 `master`, so rebase only for a real conflict or for a failure that `master` already
 fixed.

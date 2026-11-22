@@ -123,10 +123,11 @@ in
        `--replace` only for your own test or on Saleh's word.
     4. Push the branch and `gh pr create --base master`. A branch that touches
        `.github/workflows/` must be pushed over SSH.
-    5. Run CI yourself: `~/.claude/skills/kakapo-change/scripts/ci-local.sh <pr>`.
-       **GitHub runs no CI.** That script, run here, is the only thing that
-       posts `check` and `build`; never post a status by hand. Run it again
-       after each push.
+    5. Wait for CI: `kakapo-ci.service` runs
+       `~/.claude/skills/kakapo-change/scripts/ci-local.sh` on each pushed
+       head within ~10 s (then `gh pr checks <pr> --watch`). **GitHub runs no
+       CI.** That script, run here, is the only thing that posts `check`
+       and `build`; never post a status by hand.
     6. Give Saleh the PR link and stop.
     7. **Merge only when Saleh tells you to, in your own session** ("merge
        #21", "merge all open PRs"), and only after `check` and `build` pass:

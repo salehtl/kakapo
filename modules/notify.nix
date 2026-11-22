@@ -163,7 +163,8 @@ in
   # ping, which a FAIL or a check that cannot run sends, so the worst states
   # also reach Saleh by a second path when ntfy itself is down.
   #
-  # It pushes only when the set of WARN/FAIL lines changes, and once more when
+  # It pushes only when the set of WARN/FAIL checks (status and name, not
+  # their live detail text) changes, and once more when
   # everything is back to OK, so a lasting problem alerts once, not every run.
   # The unit itself succeeds on WARN/FAIL (exit 1/2), or notify-failure@ would
   # send a second alert and failed_units would flag this unit; it fails, and
@@ -197,9 +198,13 @@ in
       summary=$(printf '%s\n' "$out" | grep -Ev '^(OK|SKIP)'$'\t' | tr '\t' ' ')
       if [ "$rc" -eq 2 ]; then hc_ping /fail "$summary"; else hc_ping "" "$summary"; fi
       now=$(printf '%s\n' "$out" | grep -E '^(WARN|FAIL)'$'\t' | grep -v $'\tgeneration\t' || true)
+      # Compare only status and check name: the detail text carries live
+      # numbers (free memory, load), so comparing it re-pushed the same
+      # problem every 15 minutes.
+      key=$(printf '%s\n' "$now" | cut -f1,2)
       before=$(cat "$state" 2>/dev/null || true)
-      [ "$now" = "$before" ] && exit 0
-      printf '%s' "$now" >"$state"
+      [ "$key" = "$before" ] && exit 0
+      printf '%s' "$key" >"$state"
 
       if [ -z "$now" ]; then
         title="[${config.networking.hostName}] health: all OK"

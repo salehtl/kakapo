@@ -83,8 +83,18 @@
             # programs from other nixpkgs revisions then load that libasound
             # and fail on a glibc mismatch (Chromium did, 2026-10-07). kakapo is
             # headless with no audio, so give it an empty directory instead.
+            #
+            # The version is ours, not nixpkgs-unstable's: the package reads
+            # Anthropic's release manifest (version + per-platform SHA-256),
+            # and pkgs/claude-code/manifest.json is the one for the version
+            # kakapo runs. scripts/bump-apps.sh moves it to the `latest`
+            # channel every day (update-flake-lock.yml, `apps` run), so Claude
+            # Code no longer waits for nixpkgs-unstable and the weekly lock.
             (final: prev: {
-              claude-code = prev.claude-code.override { alsa-lib = final.emptyDirectory; };
+              claude-code = prev.claude-code.override {
+                alsa-lib = final.emptyDirectory;
+                manifest = builtins.fromJSON (builtins.readFile ./pkgs/claude-code/manifest.json);
+              };
             })
           ];
         };

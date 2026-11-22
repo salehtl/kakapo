@@ -253,8 +253,12 @@ itself: `kakapo-ci.service` polls GitHub every 8 s and runs `ci-local.sh` on
 each new PR head. Watch it:
 
 ```sh
-gh pr checks <n> --repo salehtl/kakapo --watch
+until [ -n "$(gh pr view <n> --repo salehtl/kakapo --json statusCheckRollup --jq '.statusCheckRollup[]')" ]; do sleep 3; done
+gh pr checks <n> --repo salehtl/kakapo --watch --interval 5
 ```
+
+(`--watch` exits at once while the commit has no status yet; the first one
+comes within about 10 s of the push.)
 
 `ci-local.sh` clones the PR's head commit from GitHub, runs `check` (lock in
 sync + `nix flake check`, evaluation and formatting) and `build` (the full

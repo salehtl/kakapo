@@ -125,7 +125,7 @@ in
        `.github/workflows/` must be pushed over SSH.
     5. Wait for CI: `kakapo-ci.service` runs
        `~/.claude/skills/kakapo-change/scripts/ci-local.sh` on each pushed
-       head within seconds (`gh pr checks <pr> --watch`). **GitHub runs no
+       head within ~10 s (then `gh pr checks <pr> --watch`). **GitHub runs no
        CI.** That script, run here, is the only thing that posts `check`
        and `build`; never post a status by hand.
     6. Give Saleh the PR link and stop.

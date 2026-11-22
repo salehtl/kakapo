@@ -10,15 +10,15 @@
 # STATUS is OK, WARN, FAIL or SKIP (could not run: no root, no network, no gh
 # auth). Exit code: 0 all OK/SKIP, 1 worst is WARN, 2 worst is FAIL, 64 usage
 # (unknown argument or --only name, or no check ran).
-# A future systemd timer can run this as root and push WARN/FAIL lines to ntfy
-# (POST to http://127.0.0.1:2586/kakapo, as notify-failure@ does); this script
-# itself never does. Such a unit must:
-#   - set SuccessExitStatus = "1 2" and read the WARN/FAIL lines itself, or
-#     notify-failure@ fires a duplicate alert and failed_units flags the unit;
-#   - run --offline (plus at most a daily online run), so it never polls GitHub;
-#   - put on `path` (procps before coreutils, for uptime -s): procps bind.host diffutils curl smartmontools util-linux iproute2 gawk
-#     gnused gnugrep coreutils findutils systemd, networking.firewall.package,
-#     services.tailscale.package, nix.package (and gh for online runs).
+# health-check.service (every 15 min, --offline) and health-report.service
+# (daily, online) in modules/notify.nix run it as root and alert through
+# kakapo-alert; this script itself never sends anything. Their `path` holds
+# what it needs (procps before coreutils, for uptime -s): procps bind.host
+# diffutils curl smartmontools util-linux iproute2 gawk gnused gnugrep
+# coreutils findutils systemd, networking.firewall.package,
+# services.tailscale.package, nix.package. Keep the output format, the check
+# names and the detail prefixes "last nixos-upgrade result=" (upgrade) and
+# "failed: " (hasala) stable: health-check filters on them.
 #
 # Usage: check.sh [--offline] [--deep] [--only name,name,...]
 #   --offline  skip checks that need GitHub (master eval, PRs, master CI)
@@ -30,7 +30,7 @@
 #   proxy names = /etc/hosts line for 10.0.0.215 (networking.hosts, lan-proxy.nix)
 #   wildcard cert *.salehtl.com, unit acme-salehtl.com  lan-proxy.nix
 #   nixos-upgrade at 04:00, nix-gc weekly                modules/base.nix
-#   nixpkgs-age threshold 21 days                         modules/notify.nix
+#   nixpkgs age 14 days WARN, 21 days FAIL                (this file only)
 #   KEY_UNITS below                                       modules/services/*.nix
 set -u
 export LC_ALL=C
@@ -53,7 +53,7 @@ KEY_UNITS=(
   immich-server.service immich-machine-learning.service postgresql.service redis-immich.service
   docker.service docker-grampsweb.service docker-grampsweb-celery.service docker-grampsweb-redis.service
   ntfy-sh.service zapret.service
-  nixos-upgrade.timer nix-gc.timer nixpkgs-age.timer tailscale-key-expiry.timer
+  nixos-upgrade.timer nix-gc.timer health-check.timer health-report.timer
 )
 
 # Hasala has its own check: hasala.target is a kill switch Saleh may pull on
@@ -139,7 +139,8 @@ check_failed_units() {
   if [ -n "$units" ]; then emit FAIL failed_units "$units"; else emit OK failed_units "none"; fi
 }
 
-# --- age of the running nixpkgs (same rule as nixpkgs-age.service)
+# --- age of the running nixpkgs: the only alert for a lock that silently stops
+# moving (workflow failing, bump PR held), since nixos-upgrade still succeeds
 check_nixpkgs_age() {
   local built days
   local built_s
@@ -400,7 +401,11 @@ check_tailscale() {
   if [ "$state" != Running ]; then emit FAIL tailscale "BackendState=$state (remote access, subnet route, exit node and nginx-auth depend on it)"; return; fi
   if [ -z "$exp" ]; then emit OK tailscale "Running; node key expiry disabled"; return; fi
   days=$((($(date -d "$exp" +%s) - now) / 86400))
-  if [ "$days" -lt 21 ]; then emit WARN tailscale "Running; node key expires in $days days ($exp)"
+  # At expiry tailscaled drops every peer and route (SSH over the tailnet, the
+  # 10.0.0.215/32 route, tailscale-nginx-auth). Fix: Tailscale admin console,
+  # Machines -> kakapo -> Disable key expiry.
+  if [ "$days" -lt 7 ]; then emit FAIL tailscale "Running; node key expires in $days days ($exp): disable key expiry for kakapo in the admin console"
+  elif [ "$days" -lt 21 ]; then emit WARN tailscale "Running; node key expires in $days days ($exp): disable key expiry for kakapo in the admin console"
   else emit OK tailscale "Running; node key expires in $days days"; fi
 }
 

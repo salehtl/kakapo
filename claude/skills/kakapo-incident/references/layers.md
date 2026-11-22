@@ -91,7 +91,7 @@ incident (SKILL.md rule 8), not an outage.
   date with `tailscale status --json | sed -n '/"Self"/,/^  }/p' | grep KeyExpiry`
   (no line: expiry is disabled; on 2026-10-22 it was). A plain
   `grep -m1 KeyExpiry` returns a peer's date.
-  `tailscale-key-expiry` mails 21 days before.
+  `health-check` (the `tailscale` check) warns 21 days before and fails, with a mail, 7 days before.
 - **SSH:** port 22 is open on every interface on purpose, so the LAN is the
   path when Tailscale is down. Never narrow it, never enable password or root
   login to "get in".
@@ -203,7 +203,7 @@ build failed. Sort a build failure:
 
 Fix through a PR (`kakapo-update` for `flake.lock`, `kakapo-change`
 otherwise). A success that installs nothing new is not caught here:
-`nixpkgs-age` mails when the running nixpkgs is over 21 days old.
+`health-check` (the `nixpkgs_age` check) warns over 14 days and fails, with a mail, over 21 days.
 
 ## 7. Boot and kernel
 

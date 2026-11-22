@@ -32,9 +32,13 @@
 #          chosen repos with no `statuses` or `workflows` permission, so a
 #          t3 agent can push branches and open PRs but cannot make a PR green
 #          and merge it (write access to kakapo with statuses is root here).
-#          It reaches the unit only through LoadCredential= as GH_TOKEN, and
-#          git uses it through `gh auth git-credential`. Never a copy of
-#          Saleh's own `gh` login or SSH key.
+#          It reaches the unit only through LoadCredential= as GH_TOKEN.
+#          A fine-grained token has one owner, so the Hasala org
+#          (github.com/Hasala, since 2026-11-22) has its own token
+#          (secrets/t3code-hasala.yaml, GH_TOKEN_HASALA) with the same
+#          limits. `gh` (ghByOwner) and git (gitCredential) pick the token
+#          by the repository's owner. Never a copy of Saleh's own `gh` login
+#          or SSH key.
 # Ingress: tailnet only, https://t3.salehtl.com via the LAN proxy's
 #          `tailnetOnly` list (tailscale-nginx-auth), plus t3's own pairing:
 #          a browser must present a one-time pairing token first
@@ -51,7 +55,51 @@ let
   stateDir = "/var/lib/t3code";
   baseDir = "${stateDir}/t3";
   workDir = "${stateDir}/work";
-  package = pkgs.unstable.t3code.override { enableClaude = true; };
+  # GitHub tokens by repository owner. GH_TOKEN is Saleh's personal token;
+  # a repository of the Hasala org uses GH_TOKEN_HASALA. Both are set in the
+  # unit's script from LoadCredential=.
+  ghByOwner = pkgs.writeShellScriptBin "gh" ''
+    owner= prev=
+    for a in "$@"; do
+      case "$prev" in -R | --repo) owner=''${a%%/*} ;; esac
+      case "$a" in
+        --repo=*) r=''${a#--repo=}; owner=''${r%%/*} ;;
+        -R?*) r=''${a#-R}; owner=''${r%%/*} ;;
+        *github.com[/:]*) r=''${a#*github.com}; r=''${r#?}; owner=''${r%%/*} ;;
+        -* | /* | .*) ;;
+        */*) [ -n "$owner" ] || owner=''${a%%/*} ;;
+      esac
+      prev=$a
+    done
+    if [ -z "$owner" ] && [ -n "''${GH_REPO:-}" ]; then r=''${GH_REPO#github.com/}; owner=''${r%%/*}; fi
+    if [ -z "$owner" ]; then
+      url=$(${lib.getExe pkgs.git} remote get-url origin 2>/dev/null || true)
+      case "$url" in *github.com[/:]*) r=''${url#*github.com}; r=''${r#?}; owner=''${r%%/*} ;; esac
+    fi
+    case "''${owner,,}" in
+      hasala) [ -z "''${GH_TOKEN_HASALA:-}" ] || export GH_TOKEN="$GH_TOKEN_HASALA" ;;
+    esac
+    exec ${lib.getExe pkgs.gh} "$@"
+  '';
+  # git's credential helper for https://github.com, with the same rule.
+  gitCredential = pkgs.writeShellScript "t3code-git-credential" ''
+    [ "''${1:-}" = get ] || exit 0
+    host= path=
+    while IFS== read -r k v; do
+      [ -n "$k" ] || break
+      case "$k" in host) host=$v ;; path) path=$v ;; esac
+    done
+    [ "$host" = github.com ] || exit 0
+    token=''${GH_TOKEN:-}
+    owner=''${path%%/*}
+    case "''${owner,,}" in hasala) token=''${GH_TOKEN_HASALA:-$token} ;; esac
+    [ -n "$token" ] || exit 0
+    printf 'username=x-access-token\npassword=%s\n' "$token"
+  '';
+  package = pkgs.unstable.t3code.override {
+    enableClaude = true;
+    gh = ghByOwner;
+  };
   t3 = lib.getExe' package "t3";
 
   # Google's Antigravity ACP runtime, which t3's `antigravity` provider runs
@@ -143,7 +191,7 @@ in
       pkgs.unzip
       pkgs.file
       pkgs.git
-      pkgs.gh
+      ghByOwner
       pkgs.openssh
       pkgs.nix
     ];
@@ -155,19 +203,24 @@ in
       # own. The key comes from the credential below, set in the script.
       ANTHROPIC_BASE_URL = "http://127.0.0.1:${toString config.services.cliproxyapi.settings.server.port}";
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1";
-      # HTTPS git to github.com authenticates with GH_TOKEN (set below), in
-      # the environment rather than a ~/.gitconfig, so the flake owns it.
-      GIT_CONFIG_COUNT = "2";
+      # HTTPS git to github.com authenticates with the owner's token (set
+      # below), in the environment rather than a ~/.gitconfig, so the flake
+      # owns it. useHttpPath gives the helper the repository path.
+      GIT_CONFIG_COUNT = "3";
       GIT_CONFIG_KEY_0 = "credential.https://github.com.helper";
       GIT_CONFIG_VALUE_0 = "";
       GIT_CONFIG_KEY_1 = "credential.https://github.com.helper";
-      GIT_CONFIG_VALUE_1 = "!gh auth git-credential";
+      GIT_CONFIG_VALUE_1 = "${gitCredential}";
+      GIT_CONFIG_KEY_2 = "credential.https://github.com.useHttpPath";
+      GIT_CONFIG_VALUE_2 = "true";
     };
     script = ''
       ANTHROPIC_AUTH_TOKEN=$(<"$CREDENTIALS_DIRECTORY/cliproxy-api-key")
       export ANTHROPIC_AUTH_TOKEN
       GH_TOKEN=$(<"$CREDENTIALS_DIRECTORY/github-token")
       export GH_TOKEN
+      GH_TOKEN_HASALA=$(<"$CREDENTIALS_DIRECTORY/github-token-hasala")
+      export GH_TOKEN_HASALA
       exec ${t3} serve --mode web --host 127.0.0.1 --port ${toString port} --base-dir ${baseDir} --no-browser ${workDir}
     '';
     serviceConfig = {
@@ -179,6 +232,7 @@ in
       LoadCredential = [
         "cliproxy-api-key:${config.sops.secrets."cliproxyapi/api_key".path}"
         "github-token:${config.sops.secrets."t3code/github_token".path}"
+        "github-token-hasala:${config.sops.secrets."t3code/github_token_hasala".path}"
       ];
       Restart = "on-failure";
       RestartSec = 5;

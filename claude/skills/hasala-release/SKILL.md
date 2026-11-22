@@ -6,7 +6,7 @@ description: Release a new hasalad (Hasala's QA backend) to kakapo and deploy it
 # hasala-release: hasalad to kakapo QA, now
 
 kakapo runs the hasala commit pinned in kakapo's `flake.nix` (`hasala.url =
-"github:salehtl/hasala/<sha>"`). The workflow `.github/workflows/hasala-release.yml`
+"github:Hasala/hasala/<sha>"`). The workflow `.github/workflows/hasala-release.yml`
 in salehtl/kakapo already releases each hour, but a merged release reaches the host
 only at 04:00 and nothing runs `guarded-test.sh` for it. Saleh uses this skill when
 he wants a release on QA **now**, tested, or a commit the workflow will not pick.
@@ -68,7 +68,7 @@ The module runs as root on the house DNS server; a migration changes real
 tester data. For each `file` line, read the diff in hasala:
 
 ```sh
-gh api repos/salehtl/hasala/compare/<pinned>...<target> --jq '.files[] | select(.filename == "<file>") | .patch'
+gh api repos/Hasala/hasala/compare/<pinned>...<target> --jq '.files[] | select(.filename == "<file>") | .patch'
 ```
 
 Tell Saleh, in one line each, what the migration does (expand-only? a
@@ -103,7 +103,7 @@ Look at `pr`, `pr_other` and `run` from step 1.
   hand with kakapo-change, on branch `hasala-<short>`. The bump is:
 
   ```sh
-  sed -i 's|github:salehtl/hasala/[0-9a-f]\{40\}|github:salehtl/hasala/<full sha>|' flake.nix
+  sed -i 's|github:Hasala/hasala/[0-9a-f]\{40\}|github:Hasala/hasala/<full sha>|' flake.nix
   nix flake lock     # moves hasala (and its own nixpkgs pins) only
   nix flake check
   git diff --stat    # only flake.nix and flake.lock

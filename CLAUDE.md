@@ -104,7 +104,7 @@ Composition is layered; each layer only knows about the one below it. Every modu
 
 ### Flake and host
 
-- `flake.nix` → wires `nixpkgs` (channel `nixos-26.05`), `nixpkgs-unstable`, `sops-nix`, `hasala` (`github:salehtl/hasala`, pinned to a commit, for its NixOS module; no `follows`) `midstudy` (`github:salehtl/midstudy`, pinned to a commit, for its NixOS module; no `follows`) and `treefmt-nix` into `nixosConfigurations.kakapo`, plus exposes `formatter` + `checks.formatting` per system. Its overlay adds `pkgs.unstable`, the nixpkgs-unstable package set used for claude-code, herdr, tuios, Immich (package and NixOS module) and Tailscale; nothing else comes from unstable.
+- `flake.nix` → wires `nixpkgs` (channel `nixos-26.05`), `nixpkgs-unstable`, `sops-nix`, `hasala` (`github:Hasala/hasala`, pinned to a commit, for its NixOS module; no `follows`) `midstudy` (`github:salehtl/midstudy`, pinned to a commit, for its NixOS module; no `follows`) and `treefmt-nix` into `nixosConfigurations.kakapo`, plus exposes `formatter` + `checks.formatting` per system. Its overlay adds `pkgs.unstable`, the nixpkgs-unstable package set used for claude-code, herdr, tuios, Immich (package and NixOS module) and Tailscale; nothing else comes from unstable.
 - `treefmt.nix` → formatter config: `nixfmt-rfc-style` + `deadnix` + `statix`.
 - `hosts/kakapo/default.nix` → **host identity + invariants**: hostname, bootloader (systemd-boot + EFI), declared users (`saleh`, `humaid`) + their SSH keys, `users.mutableUsers = false`, `security.sudo.wheelNeedsPassword = false`, docker, direnv + nix-direnv, mosh (no firewall opening; tailnet only), `claude-code`, `herdr`, `tuios` and `gh`, unfree packages allowed by name via `allowUnfreePredicate` (the NVIDIA driver and T3 Code's `agy-acp-server`; claude-code comes from `pkgs.unstable`, whose own predicate is in `flake.nix`), the global firewall port list (`allowedTCPPorts = [ 22 ]`; the `53` and `443` exceptions are interface-scoped in their own modules), and five eval-time `assertions` guarding hostname/`saleh`-SSH-key-presence/key-only SSH/firewall/Tailscale SSH off. Imports `hardware.nix` + the shared modules.
 - `hosts/kakapo/hardware.nix` → disks (UUID-pinned ext4 root + vfat /boot + /mnt/media), kernel modules (`kvm-amd`, `igb` NIC), AMD microcode, and the GPU: a GeForce RTX 2060 (6 GB) on NVIDIA's driver (open kernel modules, `nvidia-persistenced`, no X). The host only carries the driver (`nvidia-smi` included); CUDA libraries belong in each project's flake with its own `allowUnfree`/`cudaSupport`. Don't add host packages that pull in the CUDA toolkit (e.g. `nvtopPackages.nvidia`). This is the file to touch for storage/hardware changes.
@@ -327,7 +327,7 @@ kakapo runs the hasala commit in `flake.nix`'s `hasala.url` (a rev, so `nix flak
 **By hand** (to release sooner, or a commit the workflow would not pick): pick a commit of hasala `main` whose CI is green (its `nixos-vm` job boots this same module), then on a branch:
 
 ```sh
-sed -i 's|github:salehtl/hasala/[0-9a-f]*|github:salehtl/hasala/<full sha>|' flake.nix
+sed -i 's|github:Hasala/hasala/[0-9a-f]*|github:Hasala/hasala/<full sha>|' flake.nix
 nix flake lock                               # moves hasala (and its own nixpkgs pins) only
 nix flake check
 ```

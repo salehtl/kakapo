@@ -55,7 +55,8 @@ in
 
     Projects live in `~/src/<name>`, and their rules are in
     `/etc/claude-code/projects.md`. It loads automatically for any session
-    under `~/src` (it is linked there as `~/src/CLAUDE.md`). **Before cloning
+    under `~/src` (it is linked there as `~/src/CLAUDE.md`) and for any T3
+    Code session (projects in `/var/lib/t3code/<name>`). **Before cloning
     or creating a project, or working on one from anywhere else, read it.** In
     short: tools come from the project's own flake, never the host; no sudo;
     bind `127.0.0.1`; never touch the host or the kakapo flake from project
@@ -209,7 +210,9 @@ in
   # Rules for project work, as opposed to host work. Claude Code loads every
   # CLAUDE.md from the working directory up, so linking the guide as
   # ~/src/CLAUDE.md reaches every session started in a project there,
-  # without loading it into host sessions.
+  # without loading it into host sessions. T3 Code's projects are not under a
+  # normal user's ~/src: modules/services/t3code.nix links the same file as
+  # /var/lib/t3code/CLAUDE.md.
   environment.etc."claude-code/projects.md".source = ./claude-projects.md;
   # Claude desktop's SSH sessions upload a generic linux-x64 Claude Code build
   # to ~/.claude/remote/ccd-cli and run it there. NixOS's stub

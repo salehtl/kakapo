@@ -10,7 +10,24 @@
 #          own logins in the home directory (`.codex`, `.claude`), and the
 #          workspace in `work/`. Claude Code uses CLIProxyAPI on loopback
 #          with its API key, so it needs no login here (2026-11-19). Codex
-#          logs in out of band (CLAUDE.md, "T3 Code").
+#          logs in out of band (CLAUDE.md, "T3 Code"). Projects are cloned
+#          to /var/lib/t3code/<name>, so the project rules
+#          (modules/claude-projects.md) are linked as
+#          /var/lib/t3code/CLAUDE.md: Claude Code loads every CLAUDE.md from
+#          the working directory up, and ~/src/CLAUDE.md (modules/claude.nix)
+#          exists only for normal users.
+# Limits:  every agent of every session is in this one cgroup, and the host
+#          has no swap. With MemoryMax=8G and the default OOMPolicy=stop, two
+#          parallel Nix evaluations stopped the whole unit twice on
+#          2026-11-22, which ended every agent session at once. Now 14G
+#          (throttle and reclaim) / 16G (hard) of the host's 31 GiB, and
+#          OOMPolicy=continue: the kernel kills one process and the unit
+#          stays up. CPUWeight/IOWeight are half the default, so under
+#          contention each house service gets twice this unit's share
+#          (IOWeight does nothing until a disk uses BFQ or io.cost). Builds
+#          that agents start run in nix-daemon.service, outside these limits.
+#          The unit restarts when an activation changes it (restartIfChanged
+#          is the default), which ends every running agent session.
 # GitHub:  a fine-grained token of Saleh's (secrets/t3code.yaml), scoped to
 #          chosen repos with no `statuses` or `workflows` permission, so a
 #          t3 agent can push branches and open PRs but cannot make a PR green
@@ -62,6 +79,9 @@ in
       group = "t3code";
       mode = "0700";
     };
+    # The project rules, for every session under the state directory. Same
+    # line as ~/src/CLAUDE.md in modules/claude.nix.
+    "${stateDir}/CLAUDE.md"."L+".argument = "/etc/claude-code/projects.md";
   };
 
   systemd.services.t3code = {
@@ -69,7 +89,9 @@ in
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
     wantedBy = [ "multi-user.target" ];
-    # What the agents run. Projects bring the rest from their own flakes.
+    # What the agents run: a basic shell kit (jq, bc, unzip and file since
+    # 2026-11-22, because agents and project scripts kept failing without
+    # them). Projects bring the rest from their own flakes.
     path = [
       package
       pkgs.bashInteractive
@@ -79,6 +101,10 @@ in
       pkgs.gnused
       pkgs.gawk
       pkgs.ripgrep
+      pkgs.jq
+      pkgs.bc
+      pkgs.unzip
+      pkgs.file
       pkgs.git
       pkgs.gh
       pkgs.openssh
@@ -134,7 +160,13 @@ in
       RestrictSUIDSGID = true;
       LockPersonality = true;
       UMask = "0077";
-      MemoryMax = "8G";
+
+      # See "Limits" at the top of this file.
+      MemoryHigh = "14G";
+      MemoryMax = "16G";
+      OOMPolicy = "continue";
+      CPUWeight = 50;
+      IOWeight = 50;
     };
   };
 

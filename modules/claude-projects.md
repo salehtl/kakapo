@@ -1,8 +1,26 @@
 # Working on projects on kakapo
 
-This file is loaded for every agent session under `~/src`. It is managed by
+This file is loaded for every agent session under `~/src`, and for every
+T3 Code session (under `/var/lib/t3code`). It is managed by
 the kakapo flake (`modules/claude-projects.md` in github:salehtl/kakapo), so
 edits here do not stick: change it there.
+
+**In T3 Code** (you are the user `t3code`), read the rules below with these
+differences:
+
+- A project is at `/var/lib/t3code/<name>`, where T3 Code puts it. Read
+  `~/src/<name>` below as that path; do not make a `src` directory.
+- Every T3 session shares one memory limit, and there is no swap: the kernel
+  slows the sessions above 14 GB and kills a process at 16 GB. So "under
+  ~16 GB" in section 6 is for all sessions together, not for yours. A Nix
+  evaluation can take several GB: run one Nix command at a time.
+- You have no sudo and no Docker access, by design. A database or queue
+  runs from the project's devShell (devenv, process-compose), not
+  `docker compose`.
+- Section 5 applies as written: project work does not touch the kakapo
+  flake. When the user asks a T3 session for a host change, it stops at an
+  open pull request: you cannot run `scripts/guarded-test.sh` or CI, and the
+  user's own session does both.
 
 kakapo is a home server first. It answers DNS for every device in the house
 (AdGuard), and runs Immich (the photo library),

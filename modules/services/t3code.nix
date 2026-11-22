@@ -37,6 +37,42 @@ let
   package = pkgs.unstable.t3code.override { enableClaude = true; };
   t3 = lib.getExe' package "t3";
 
+  # Google's Antigravity ACP runtime, which t3's `antigravity` provider runs
+  # for Gemini with Saleh's Google subscription (2026-11-22). t3 would
+  # download it into its state on its own ("Install" in the provider
+  # settings); this is the same release, pinned to the version and hash
+  # t3 0.1.8 carries (`antigravityRelease.ts`), so the flake owns it. t3
+  # finds `agy_acp_server.par` on PATH and takes `localharness_external`
+  # from the directory it resolves to, so both stay side by side.
+  # Not patched: the harness is static and the server needs only glibc,
+  # which nix-ld provides (modules/claude.nix). patchelf would also move
+  # the archive the .par carries at its end. About 1 GB in the store.
+  # Bump it with t3: take the linux-x64 url and sha256 from its release.
+  antigravityAcp = pkgs.stdenvNoCC.mkDerivation rec {
+    pname = "agy-acp-server";
+    version = "1.4.5";
+    src = pkgs.fetchurl {
+      url = "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-${version}-linux-x86_64.zip";
+      hash = "sha256-kjkjoNfcgHP2bMb3hkejEH46fuK34aJN+LOSe1GIATs=";
+    };
+    nativeBuildInputs = [ pkgs.unzip ];
+    sourceRoot = ".";
+    dontConfigure = true;
+    dontBuild = true;
+    dontFixup = true;
+    installPhase = ''
+      install -Dm755 agy_acp_server.par localharness_external -t $out/libexec/agy-acp-server
+      mkdir -p $out/bin
+      ln -s $out/libexec/agy-acp-server/agy_acp_server.par $out/bin/agy_acp_server.par
+    '';
+    meta = {
+      description = "Antigravity ACP server for T3 Code's antigravity provider";
+      license = lib.licenses.unfree;
+      sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];
+      platforms = [ "x86_64-linux" ];
+    };
+  };
+
   # Mint a one-time pairing token for a browser, as the service user.
   pair = pkgs.writeShellScriptBin "t3code-pair" ''
     exec /run/wrappers/bin/sudo -u t3code HOME=${stateDir} ${t3} pair --base-dir ${baseDir} "$@"
@@ -72,6 +108,7 @@ in
     # What the agents run. Projects bring the rest from their own flakes.
     path = [
       package
+      antigravityAcp
       pkgs.bashInteractive
       pkgs.coreutils
       pkgs.findutils

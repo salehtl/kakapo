@@ -115,6 +115,8 @@
       "nvidia-x11"
       "nvidia-settings"
       "nvidia-persistenced"
+      # T3 Code's Antigravity runtime (modules/services/t3code.nix).
+      "agy-acp-server"
     ];
   # Project dev environments (modules/claude-projects.md): a project's
   # committed `.envrc` (`use flake`) loads its flake devShell on `cd`.

@@ -36,7 +36,7 @@
     # none exists yet, and once one does it can replace the rev.)
     # Deliberately NO `follows`: the host runs exactly the closure hasala's CI
     # built and tested (its own nixos-26.05 lock, Go 1.27 from nixos-unstable).
-    hasala.url = "github:Hasala/hasala/bac139bec4e4d44c831adf59f933dc90a743e38f";
+    hasala.url = "github:Hasala/hasala/a41cae35f6b7d11fbcae97812c5166f2d91b3aed";
     # midstudy: the furniture planner on a room photo, with MoGe-2 on the GPU
     # (modules/services/midstudy.nix), for its NixOS module. Pinned to a
     # commit like hasala; release by changing the rev. Deliberately NO

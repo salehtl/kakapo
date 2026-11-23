@@ -45,7 +45,11 @@ in
           logging-to-file = false;
           request-log = false;
         };
-        usage.usage-statistics-enabled = false;
+        # Per-account and per-model request and token counts, so the load
+        # balancing across logins is visible in the TUI and the management
+        # API (2026-11-23, Saleh's choice). Counts only, no prompts, kept in
+        # memory and lost at each restart.
+        usage.usage-statistics-enabled = true;
       };
     };
   };

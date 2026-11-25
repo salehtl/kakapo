@@ -1,11 +1,11 @@
 # Rolling back a bad merge on kakapo
 
-Two things must be undone, in this order: what the **host runs now**, and what
-**`master` will deploy at 04:00**. Undoing only the host buys time until 04:00;
-undoing only `master` leaves the house broken until the revert is merged.
+Undo two things, in this order: what the **host runs now** (A), and what
+**`master` will deploy at 04:00** (B). The host alone only lasts until 04:00;
+`master` alone leaves the house broken until the revert is merged.
 
 Variables from the deploy (step 1): `$prev_boot` (the boot default before the
-deploy: the last deployed `master`, and the rollback target), `$prev_run` (what ran
+deploy: the last deployed `master`, the rollback target), `$prev_run` (what ran
 before; can be another agent's unmerged test), `<scratch>/guarded-test.sh` (the
 pre-merge guard copy), `$out` (the merged build), `$sha` (the squash commit(s) to
 revert).
@@ -23,11 +23,10 @@ sudo iptables -C INPUT -j nixos-fw && sudo ip6tables -C INPUT -j nixos-fw && ech
 systemctl --failed --no-legend --plain
 ```
 
-The boot default is untouched (you set it only after health passed), so nothing
-more is needed on the host. If `$prev_run` is not `$prev_boot`, the host now runs
-another agent's unmerged test; say so in the report (it reverts on reboot). If the
-script printed `ROLLBACK DID NOT RESTORE ...`,
-this is an incident: use kakapo-incident.
+The boot default is untouched, so the host needs nothing more. If `$prev_run` is
+not `$prev_boot`, the host now runs another agent's unmerged test; say so in the
+report (it reverts on reboot). If the script printed
+`ROLLBACK DID NOT RESTORE ...`, this is an incident: use kakapo-incident.
 
 ### A2. guarded-test.sh passed, but health failed later
 
@@ -49,8 +48,8 @@ flock -w 900 /tmp/kakapo-guarded-test.lock sudo "$prev_boot/bin/switch-to-config
 
 Then run the A1 checks. If DNS is still down, go to kakapo-incident.
 
-If you already made `$out` the boot default, set it back (kakapo-incident does not
-touch the boot default, so do this yourself):
+If you already made `$out` the boot default, set it back yourself
+(kakapo-incident does not touch the boot default):
 
 ```sh
 sudo nix-env -p /nix/var/nix/profiles/system --set "$prev_boot"
@@ -58,8 +57,8 @@ sudo "$prev_boot/bin/switch-to-configuration" boot
 readlink -f /nix/var/nix/profiles/system   # == $prev_boot
 ```
 
-`nix-env --set` adds a new profile generation that points at `$prev_boot`; it does not
-delete the bad one, which stays available for diagnosis.
+`nix-env --set` adds a new generation that points at `$prev_boot`; the bad one
+stays for diagnosis.
 
 If `$prev_boot` is unknown (session lost), pick the generation before the deploy
 from the profile, not from guesswork:
@@ -68,9 +67,10 @@ from the profile, not from guesswork:
 sudo nixos-rebuild list-generations | tail -5
 ```
 
-`readlink -f /nix/var/nix/profiles/system-<N>-link` is the store path to use. Prefer the generation that was
-current before the merge (its build date predates the merge); if unsure, use
-`/run/booted-system` when the host has not rebooted since.
+`readlink -f /nix/var/nix/profiles/system-<N>-link` is the store path to use.
+Prefer the generation that was current before the merge (its build date predates
+the merge); if unsure, use `/run/booted-system` when the host has not rebooted
+since.
 
 ### A3. Data-bearing services
 
@@ -89,8 +89,8 @@ Check the module before reverting anything with migrations:
 
 ## B. master
 
-The 04:00 `nixos-upgrade` deploys `master` again, so `master` must be fixed before
-then. On a branch from `origin/master` in your clone:
+The 04:00 `nixos-upgrade` deploys `master` again, so fix `master` before then.
+On a branch from `origin/master` in your clone:
 
 ```sh
 git fetch origin
@@ -113,10 +113,10 @@ also needs his explicit word; when he gives it, deploy it with this skill
 (steps 2 to 6).
 
 If 04:00 is too close for CI and the revert merge, tell Saleh the exact time
-left. Do not stop, mask or edit `nixos-upgrade.timer` or `nixos-upgrade.service`
-on the host, and do not change the host imperatively to buy time: it is
-overwritten at the next activation and hides the real state. If the upgrade
-deploys a broken master anyway, repeat A2 after it and keep pushing the revert.
+left. Do not stop, mask or edit `nixos-upgrade.timer` or `nixos-upgrade.service`,
+and do not change the host imperatively to buy time: it is overwritten at the
+next activation and hides the real state. If the upgrade deploys a broken master
+anyway, repeat A2 after it and keep pushing the revert.
 
 ## C. Report
 

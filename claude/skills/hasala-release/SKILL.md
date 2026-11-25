@@ -5,18 +5,18 @@ description: Release a new hasalad (Hasala's QA backend) to kakapo and deploy it
 
 # hasala-release: hasalad to kakapo QA, now
 
-kakapo runs the hasala commit pinned in kakapo's `flake.nix` (`hasala.url =
+kakapo runs the hasala commit pinned in its `flake.nix` (`hasala.url =
 "github:Hasala/hasala/<sha>"`). The workflow `.github/workflows/hasala-release.yml`
-in salehtl/kakapo already releases each hour, but a merged release reaches the host
-only at 04:00 and nothing runs `guarded-test.sh` for it. Saleh uses this skill when
-he wants a release on QA **now**, tested, or a commit the workflow will not pick.
+in salehtl/kakapo releases each hour, but a merged release reaches the host only
+at 04:00 and nothing runs `guarded-test.sh` for it. Use this skill for a release
+on QA **now**, tested, or for a commit the workflow will not pick.
 
-This is host work. The rules are `/etc/claude-code/CLAUDE.md` and kakapo's
-`CLAUDE.md` ("Release a new hasala version to QA", "Making a change"). Read the
+The rules are `/etc/claude-code/CLAUDE.md` and kakapo's `CLAUDE.md` ("Release a
+new hasala version to QA", "Making a change: pull requests only"). Read the
 latter from an up-to-date clone, not `/etc/nixos`. If they disagree with this
 skill, they win; tell Saleh about the drift.
 
-Sibling skills do the general parts. Do not repeat them from memory; open them:
+Sibling skills do the general parts. Open them; do not repeat them from memory:
 
 - **kakapo-change**: clone, branch, build, closure diff, guarded-test, PR.
 - **kakapo-deploy**: merge gate (`pr-gate.sh`), merge, deploy master, boot
@@ -25,12 +25,11 @@ Sibling skills do the general parts. Do not repeat them from memory; open them:
 ## Hard rules
 
 - **Merge only on Saleh's word in this session** ("merge #44", "merge it" just
-  after your link). A request to "release" or "deploy" asks you to prepare and
-  test; confirm the merge in one line before you merge.
-  The workflow's own auto-merge (no migration, no module change) is its standing
-  exception, not yours.
-- The `hasala-release` branch belongs to the workflow. It force-pushes it every
-  hour. Never push to it. A by-hand release uses your own branch
+  after your link). "Release" or "deploy" asks you to prepare and test; confirm
+  the merge in one line before you merge. The workflow's own auto-merge (no
+  migration, no module change) is its standing exception, not yours.
+- The `hasala-release` branch belongs to the workflow, which force-pushes it
+  every hour. Never push to it. A by-hand release uses your own branch
   `hasala-<short sha>`.
 - Never release a commit that is not on hasala `main`, is older than the pin
   (a downgrade; roll back with a revert PR, kakapo-deploy step 7), or whose
@@ -55,8 +54,9 @@ Sibling skills do the general parts. Do not repeat them from memory; open them:
 | 1 | not on main, or before the pin | stop and say why |
 
 Only `server/` (not `server/oracle/`), `infra/qa/nix/` (not its tests),
-`infra/qa/db/`, `flake.nix` and `flake.lock` change what kakapo runs. If Saleh names a commit
-that changes none of them, say so: releasing it changes nothing on the host.
+`infra/qa/db/`, `flake.nix` and `flake.lock` change what kakapo runs. If Saleh
+names a commit that changes none of them, say so: releasing it changes nothing
+on the host.
 
 ## 2. Read the release
 
@@ -83,10 +83,9 @@ that drops or rewrites data is not expand-only: stop and ask.
 
 Look at `pr`, `pr_other` and `run` from step 1.
 
-- **`run` shows a `hasala-release` run in progress** (Saleh or the hourly
-  schedule started it): do not start a second one. `gh run watch <id>`, then
-  re-run `pick-release.sh` and continue with its `pr` line.
-
+- **`run` shows a `hasala-release` run in progress**: do not start a second
+  one. `gh run watch <id>`, then re-run `pick-release.sh` and continue with its
+  `pr` line.
 - **The open `hasala-release` PR already pins `target`**: use it.
 - **No PR, `target` is the newest releasable commit**: start the workflow and
   let it open the PR (it also posts `check` and `build`):
@@ -131,10 +130,10 @@ on reboot: the old `hasalad` then runs on the new schema. So:
   PRs without Saleh's word. His "release now" for this release is that word;
   an older or other instruction is not.
 
-Also judge the rollback. Expand-only means the old schema code still works;
-it does not mean the old binary reads new **data**. Look in the old rev for a
-strict reader of what the release writes (a new enum value, ledger or op
-kind, JSON field): `git grep -n 'unknown kind\|unknown type' <pinned> -- server/`.
+Also judge the rollback. Expand-only means the old schema code still works,
+not that the old binary reads new **data**. Look in the old rev for a strict
+reader of what the release writes (a new enum value, ledger or op kind, JSON
+field): `git grep -n 'unknown kind\|unknown type' <pinned> -- server/`.
 If the old binary rejects it, say so: a rollback is then not clean.
 
 To test, with kakapo-change: build the PR head's toplevel,
@@ -153,7 +152,7 @@ after a migration is the worst case: the schema moved and the server is down.
 Go to kakapo-deploy `references/rollback.md` and tell Saleh at once; do not
 retry blindly.
 
-The host now runs a test activation. It reverts on reboot and at 04:00. Give
+The host now runs a test activation, which reverts on reboot and at 04:00. Give
 Saleh the PR link and the result, and stop until he says to merge.
 
 ## 5. Merge and deploy now
@@ -170,8 +169,8 @@ the time left.
 
 ## 6. Report to Saleh
 
-Write in ASD-STE100 Simplified Technical English (host `CLAUDE.md`): result
-first, short sentences, active voice, no "-ing" forms, names in backticks.
+Write in ASD-STE100 Simplified Technical English (host `CLAUDE.md`), result
+first.
 
 ```
 Deployed. kakapo runs hasala `84d5eec`. The boot default keeps it.

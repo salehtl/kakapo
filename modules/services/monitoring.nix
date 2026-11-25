@@ -17,7 +17,6 @@
   ...
 }:
 let
-  # Served only by the LAN proxy, to tailnet devices (modules/services/lan-proxy.nix).
   host = "grafana.salehtl.com";
   grafanaPort = 3000;
   inherit (config.services.grafana) dataDir;

@@ -1,20 +1,14 @@
 # The 04:00 upgrade, guarded. system.autoUpgrade (modules/base.nix) still
-# owns nixos-upgrade.service and its timer; this replaces what the unit runs.
-# Upstream runs a bare `nixos-rebuild switch`: master becomes the running
-# system and the boot default in one step, with nothing checking the house's
-# DNS afterwards. Merges nobody deploys by hand (hasala-release, the weekly
-# lock bump) reached the host only that way.
+# owns nixos-upgrade.service and its timer; this replaces what the unit runs
+# (upstream: a bare `nixos-rebuild switch`). The unit builds master, activates
+# it through scripts/guarded-test.sh (same lock, probes and rollback as an
+# agent's test) and sets the boot default only when that passed; see
+# scripts/guarded-upgrade.sh for the exit codes. A failure fails the unit, so
+# notify-failure@ (modules/notify.nix) mails and pushes.
 #
-# Now the unit builds master, activates it through scripts/guarded-test.sh
-# (same lock, probes and rollback as an agent's test) and sets the boot
-# default only when that passed; see scripts/guarded-upgrade.sh for the exit
-# codes. A failure fails the unit, so notify-failure@ (modules/notify.nix)
-# mails and pushes.
-#
-# The guard is the copy in the *running* system's store, not master's: the
-# unit that runs at 04:00 is the old system's, so a merged PR that changes
-# guarded-test.sh or this module is judged by the previous version, and its
-# own version first judges the upgrade after it.
+# The guard is the copy in the *running* system's store, not master's: a
+# merged PR that changes guarded-test.sh or this module is judged by the
+# previous version, and its own version first judges the upgrade after it.
 #
 # The unit is not restarted or stopped by the activation it starts
 # (restartIfChanged = false and X-StopOnRemoval = false, both upstream).

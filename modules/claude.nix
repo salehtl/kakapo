@@ -10,14 +10,10 @@ let
   );
 in
 {
-  # Managed-policy CLAUDE.md: loaded by every Claude Code / agent session on this
-  # host regardless of user or working directory, and not excludable by user
-  # settings. A session that starts outside /etc/nixos would otherwise see none
-  # of this. Keep it an orientation pointer, not a copy of the repo's CLAUDE.md —
-  # duplicating that file here would let the two drift apart. What belongs
-  # here: what the host is, where the real guide and the skills are, the PR
-  # workflow in brief, and the invariants an agent must not break before it
-  # has read that guide.
+  # Managed-policy CLAUDE.md: loaded by every Claude Code session on this host
+  # whatever the user or working directory, and not excludable by user
+  # settings. Keep it an orientation pointer, not a copy of the repo's
+  # CLAUDE.md, or the two drift apart.
   environment.etc."claude-code/CLAUDE.md".text = ''
     # ${host} — host operating context
 
@@ -213,26 +209,19 @@ in
     require one.
   '';
 
-  # Rules for project work, as opposed to host work. Claude Code loads every
-  # CLAUDE.md from the working directory up, so linking the guide as
-  # ~/src/CLAUDE.md reaches every session started in a project there,
-  # without loading it into host sessions. T3 Code's projects are not under a
-  # normal user's ~/src: modules/services/t3code.nix links the same file as
-  # /var/lib/t3code/CLAUDE.md.
+  # Rules for project work. Claude Code loads every CLAUDE.md from the working
+  # directory up, so linking the guide as ~/src/CLAUDE.md reaches every project
+  # session there without loading it into host sessions.
+  # modules/services/t3code.nix links the same file as /var/lib/t3code/CLAUDE.md.
   environment.etc."claude-code/projects.md".source = ./claude-projects.md;
   # Claude desktop's SSH sessions upload a generic linux-x64 Claude Code build
-  # to ~/.claude/remote/ccd-cli and run it there. NixOS's stub
-  # /lib64/ld-linux-x86-64.so.2 refuses unpatched binaries, so the app fails
-  # with "installed cli ... is not runnable" (2026-10-11). nix-ld provides a
-  # real loader for them (closure: +nix-ld 68 KiB, +libssh from its default
-  # library set, -stub-ld). The host's own claude-code (from pkgs.unstable) is unaffected.
+  # to ~/.claude/remote/ccd-cli. NixOS's stub loader refuses unpatched binaries
+  # ("installed cli ... is not runnable"); nix-ld provides a real one.
   programs.nix-ld.enable = true;
 
-  # Host-management skills (health, security, change, deploy, update,
-  # incident, housekeeping, hasala-release). They ship from the flake like everything else, so they change
-  # only by PR; editing the installed copies does nothing. Each is linked into
-  # ~/.claude/skills, where Claude Code discovers user skills; skills a user
-  # adds there by hand under other names are left alone.
+  # Host-management skills. They ship from the flake, so they change only by
+  # PR; editing the installed copies does nothing. Each is linked into
+  # ~/.claude/skills; skills a user adds there under other names are left alone.
   environment.etc."claude-code/skills".source = ../claude/skills;
 
   systemd.tmpfiles.rules = lib.concatMap (

@@ -11,17 +11,12 @@ let
   staging = "/var/backups/restic-staging";
 in
 {
-  # Off-site, encrypted restic backup of the data that exists nowhere else.
+  # Off-site, encrypted restic backup of the data that exists nowhere else: the
+  # Immich library with its database dumps and Hasala's dumps (all on the one
+  # media SSD), ledger's archive and Gramps Web (root NVMe). Everything else
+  # rebuilds from this flake.
   #
-  # Today every copy of it lives on this host: the Immich library and its
-  # nightly database dumps, and Hasala's age-encrypted dumps, are all on the
-  # one media SSD (/mnt/media, sda); ledger (retired 2026-11-19, its
-  # data kept as an archive) and Gramps Web are on the root
-  # NVMe. One failed disk, a fire or a theft loses them. Everything else on
-  # kakapo is declared in this flake and rebuilds from it.
-  #
-  # Off until a target is chosen (Backblaze B2, a Hetzner Storage Box, a NAS,
-  # an external disk, ...). To turn it on:
+  # Off until a target is chosen. To turn it on:
   #   1. Add secrets/backup.yaml with `backup/restic_password` (a new random
   #      password; keep a copy outside kakapo, or the backup cannot be read)
   #      and `backup/env` (the target's credentials as KEY=value lines, e.g.

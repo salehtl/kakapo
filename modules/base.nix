@@ -17,11 +17,10 @@
         "@wheel"
       ];
     };
-    # No --delete-older-than here on purpose: that flag deletes generations with
-    # no floor, so a month with no rebuilds would leave exactly one generation
-    # and destroy every rollback target. prune-system-generations below applies
-    # the same age rule while never dropping below a minimum count, and runs
-    # immediately before this collection so the freed paths go in the same pass.
+    # No --delete-older-than: it has no floor, so a month with no rebuilds would
+    # leave one generation and no rollback target. prune-system-generations
+    # below applies the age rule with a minimum count, right before this
+    # collection.
     gc = {
       automatic = true;
       dates = "weekly";
@@ -52,13 +51,11 @@
     settings = {
       PermitRootLogin = "no";
       PasswordAuthentication = false;
-      # keyboard-interactive goes through PAM's password prompt, a second
-      # password path next to PasswordAuthentication. Off, so sshd offers
-      # publickey only and SSH stays key-only even if an account ever gets a
-      # password.
+      # keyboard-interactive is a second password path, through PAM. Off, so
+      # SSH stays key-only even if an account ever gets a password.
       KbdInteractiveAuthentication = false;
-      # Nothing here needs unix-socket forwarding (ssh -L/-R to a socket path);
-      # it is the class of forwarding the Tailworm report abuses.
+      # Nothing here needs unix-socket forwarding (ssh -L/-R to a socket path),
+      # which the Tailworm report abuses.
       AllowStreamLocalForwarding = "no";
     };
   };
@@ -66,40 +63,31 @@
   services.tailscale = {
     enable = true;
     # 26.05 stays on 1.98.x; unstable tracks upstream releases, which carry
-    # the security fixes for tailscaled (root, on every interface's traffic).
-    # The flake.lock bump moves it with nixpkgs-unstable.
+    # tailscaled's security fixes.
     package = pkgs.unstable.tailscale;
     # Tailscale SSH is off: sshd above answers port 22 on the tailnet too,
     # with the YubiKey sk- keys and no root login. Tailscale SSH authenticates
-    # the device, not the user, and runs as root; the Tailworm report
-    # (tailworm.com, 2026-10) shows its unix-socket forwarding (ssh -L/-R) can
-    # dial and replace root-only sockets, and a session can grow root
-    # tailscaled's memory without bound. The tailnet SSH policy also let the
-    # phone in as root with every forwarding allowed, and homeassistant and
-    # kakapo itself in as root after a check. `tailscale set` keeps a flag it
-    # is not given, so turning it off must be explicit. See the assertion in
-    # hosts/kakapo/default.nix.
+    # the device, not the user, and runs as root (the Tailworm report,
+    # tailworm.com). The tailnet policy has no `ssh` section either.
+    # `tailscale set` keeps a flag it is not given, so turning it off must be
+    # explicit; an assertion in hosts/kakapo/default.nix checks it.
     extraSetFlags = [
       "--ssh=false"
-      # Always explicit: `tailscale set` only changes the flags it is given,
-      # so a generation without the flag kept an earlier exit node advertised
-      # (and approved) with nothing declaring it. The exit node exists for
+      # Always explicit, for the same reason: without the flag an earlier exit
+      # node stays advertised. The exit node exists for
       # modules/services/zapret.nix. Given once only: `tailscale set` rejects
       # a repeated flag.
       "--advertise-exit-node=${lib.boolToString config.services.zapret.enable}"
-      # Keep kakapo's own resolv.conf (networking.nameservers). Tailscale DNS,
-      # on by default, had put 100.100.100.100 there: kakapo's lookups then
-      # depended on tailscaled, and a tailnet DNS server pointed at AdGuard
-      # would have looped them through kakapo itself. The quad-100 resolver
-      # keeps serving *.ts.net to AdGuard regardless.
+      # Keep kakapo's own resolv.conf (networking.nameservers): its lookups
+      # must not depend on tailscaled or loop through its own AdGuard. The
+      # quad-100 resolver keeps serving *.ts.net to AdGuard regardless.
       "--accept-dns=false"
     ];
   };
 
-  # tailscaled runs as root and normally uses under 100M. Cap it so a peer or
-  # a DERP relay that makes it grow without bound (Tailworm findings 5 and 6)
-  # gets it OOM-killed and restarted (Restart=on-failure) instead of taking
-  # the host's memory. DNS and the proxy on the LAN do not depend on it.
+  # tailscaled runs as root and normally uses under 100M. Capped, so a peer or
+  # DERP relay that makes it grow without bound (Tailworm findings 5 and 6)
+  # gets it OOM-killed and restarted instead of taking the host's memory.
   systemd.services.tailscaled.serviceConfig.MemoryMax = "1G";
 
   # Leftovers of modules/services/zapret.nix after it is removed: a firewall
@@ -124,18 +112,12 @@
     flake = "github:salehtl/kakapo#${config.networking.hostName}";
     flags = [ "-L" ];
     # Persistent (the module default) stays: a missed 04:00 runs at the next
-    # boot. Turning it off (2026-10-07) did not stop nixos-upgrade firing
-    # mid-activation, since the timer was already running and Persistent=
-    # only matters when a timer starts, and it froze the timer's stamp, so
-    # booting an older generation would have upgraded it straight back.
-    # The misfire is unexplained. Since the upgrade takes the guarded-test
-    # lock it can no longer switch the host under a running test.
+    # boot. The upgrade takes the guarded-test lock, so it cannot switch the
+    # host under a running test.
   };
 
-  # Age-based generation pruning with a floor. `nix-collect-garbage
-  # --delete-older-than` cannot express "but always keep N", and deletion is
-  # not reversible, so the floor is applied by exclusion before the age filter
-  # rather than after it.
+  # Age-based generation pruning with a floor: the newest `keep` are excluded
+  # before the age filter.
   systemd.services.prune-system-generations =
     let
       keep = 4;

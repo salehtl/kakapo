@@ -1,13 +1,9 @@
 # kakapo-ci: runs ci-local.sh by itself on every pushed PR head and on master,
-# within seconds of the push (modules/ci-runner.sh says how). Before it, an
-# agent had to run ci-local.sh by hand, and the wait for that was most of
-# CI's time: 67 s at the median, 30 min at p95, against a 35-40 s run.
+# within seconds of the push (modules/ci-runner.sh says how).
 #
-# Same trust as before: ci-local.sh (the deployed copy, from this flake's
-# claude/skills) refuses forks and runs only commits on salehtl/kakapo.
-# It runs as saleh because it posts statuses with saleh's gh login, as an
-# agent's manual run does. Outbound only; no port opened (GitHub is polled,
-# not a webhook).
+# ci-local.sh (the deployed copy, from this flake's claude/skills) refuses
+# forks and runs only commits on salehtl/kakapo. It runs as saleh because it
+# posts statuses with saleh's gh login. Outbound only: GitHub is polled.
 { pkgs, ... }:
 {
   systemd.services.kakapo-ci = {

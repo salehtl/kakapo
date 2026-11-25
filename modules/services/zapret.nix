@@ -6,8 +6,9 @@
 # DPI does not reassemble. No fakes, no TTL tricks: the server receives exactly
 # the bytes the client sent.
 #
-# Strategy from `blockcheck` on this line (2026-10-07, see the commit message).
-# If the ISP changes its DPI and blocked sites start resetting again, rerun it:
+# Strategy from `blockcheck` on this line; the shorter `1,midsld` split fails
+# TLS 1.2. If the ISP changes its DPI and blocked sites start resetting again,
+# rerun it:
 #
 #   sudo env BATCH=1 DOMAINS=<blocked domain> IPVS=4 ENABLE_HTTP=0 \
 #     ENABLE_HTTP3=0 SKIP_TPWS=1 FWTYPE=iptables \
@@ -27,11 +28,8 @@
 # with -I on every firewall reload and never removes them, so they pile up.
 # Our rules live in a chain we flush and re-fill instead.
 #
-# Out-of-band: the exit node must be approved in the Tailscale admin console
-# (Machines -> kakapo -> Edit route settings -> Use as exit node).
-#
-# The shorter `1,midsld` split fails TLS 1.2.
-# The exit node must stay approved in the Tailscale admin console:
+# Outside the flake: the exit node must stay approved in the Tailscale admin
+# console (Machines -> kakapo -> Edit route settings -> Use as exit node):
 #   tailscale status --json | grep -A4 PrimaryRoutes    (lists 0.0.0.0/0)
 { config, ... }:
 let

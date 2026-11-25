@@ -1,35 +1,28 @@
 # AdGuard Home: network-wide DNS filtering with HaGeZi's blocklists, for the
-# tailnet and the home LAN. Replaces the Home Assistant resolver at 10.0.0.10,
-# which stopped answering on :53 on 2026-10-04.
+# tailnet and the home LAN.
 #
-# State:   /var/lib/AdGuardHome/AdGuardHome.yaml (DynamicUser, 0600)
-#          Filter list copies live beside it and refresh on AdGuard's own timer.
+# State:   /var/lib/AdGuardHome/AdGuardHome.yaml (DynamicUser, 0600), with the
+#          filter list copies beside it.
 # Ingress: Web UI at https://adguard.salehtl.com, LAN and tailnet
-#          (modules/services/lan-proxy.nix).
-#          DNS is :53 on the tailnet and the LAN -- see "Why :53 is open" below.
-# Login:   None, by Saleh's choice (2026-10-05): the UI is open to anyone on
-#          the LAN and tailnet. If one is ever wanted, never put the bcrypt
-#          hash in `settings` (world-readable Nix store), and never add a
-#          step to adguardhome's own preStart: its seccomp sandbox killed a yq
-#          step there on 2026-10-05 and the house had no DNS for two minutes.
-#          Use a separate root oneshot that adguardhome only *wants*.
+#          (modules/services/lan-proxy.nix). DNS is :53 on the tailnet and the
+#          LAN: see "Why :53 is open" below.
+# Login:   None, by Saleh's choice: the UI is open to anyone on the LAN and
+#          tailnet. If one is ever wanted, never put the bcrypt hash in
+#          `settings` (world-readable Nix store), and never add a step to
+#          adguardhome's own preStart: its seccomp sandbox kills it and the
+#          house loses DNS. Use a separate root oneshot that adguardhome only
+#          *wants*.
 #
-# Why :53 is open, when every other service here binds 127.0.0.1:
-#   `tailscale serve` is an HTTPS reverse proxy. It cannot carry UDP, and it
-#   only accepts 443/8443/10000 -- so there is no way to reach a resolver
-#   through it. A DNS server that only listens on loopback filters nothing but
-#   kakapo's own queries. The port is therefore open, but never globally:
-#     1. Firewall rules are scoped to tailscale0 and the LAN NIC, so :53 is
-#        unreachable from anywhere `networking.firewall.allowedTCPPorts` would
-#        expose it. The global list stays [ 22 ].
-#     2. `dns.allowed_clients` restricts answers to the tailnet CGNAT range,
-#        the LAN /24 and the IoT VLAN, independently of the firewall. An open resolver is an
-#        amplification source; this holds even if a firewall rule regresses.
-#     3. `ratelimit` caps per-client QPS.
-#   bind_hosts is 0.0.0.0 rather than the three literal addresses because the
-#   LAN address comes from DHCP: pinning 10.0.0.215 here would silently take
-#   DNS down for the whole house on a lease change. The interface-scoped
-#   firewall is the control that matters and is immune to that.
+# Why :53 is open, when every other service here binds 127.0.0.1: a resolver
+# on loopback filters nothing but kakapo's own queries. Never globally:
+#   1. The firewall opens :53 only on tailscale0 and the LAN NIC. The global
+#      allowedTCPPorts stays [ 22 ].
+#   2. `dns.allowed_clients` restricts answers to the tailnet, the LAN /24 and
+#      the IoT VLAN, independently of the firewall: an open resolver is an
+#      amplification source.
+#   3. `ratelimit` caps per-client QPS.
+# bind_hosts is 0.0.0.0, not the literal addresses: the LAN address comes from
+# DHCP, and pinning it would take DNS down for the house on a lease change.
 #
 # Outside the flake: UniFi hands out 10.0.0.215 as DNS on the Default and IoT
 # networks, with a fixed reservation for kakapo, so every device in the house
@@ -46,11 +39,9 @@ let
 
   lanInterface = "enp4s0"; # the igb NIC from hosts/kakapo/hardware.nix
   lanCidr = "10.0.0.0/24";
-  # IoT VLAN 30. UniFi hands it 10.0.0.215 as its DNS server and its firewall
-  # allows IoT -> 10.0.0.215:53 ("IoT allow DNS to kakapo"), so AdGuard must
-  # answer it too. Missing from allowed_clients until 2026-10-06, IoT queries
-  # were silently dropped. Its packets arrive on the LAN NIC (routed by the
-  # gateway), which the firewall below already opens :53 on.
+  # IoT VLAN 30. UniFi hands it 10.0.0.215 as DNS and its firewall allows
+  # IoT -> 10.0.0.215:53, so it must be in allowed_clients or its queries are
+  # silently dropped. Its packets arrive on the LAN NIC, routed by the gateway.
   iotCidr = "192.168.30.0/24";
   lanGateway = "10.0.0.1";
   tailnetCidr = "100.64.0.0/10"; # Tailscale's CGNAT range
@@ -82,13 +73,11 @@ in
     host = "127.0.0.1";
     port = uiPort;
 
-    # Leave this false. It would add the UI port to the *global*
-    # allowedTCPPorts, which is exactly what this host does not do.
+    # Never true: it adds the UI port to the global allowedTCPPorts.
     openFirewall = false;
 
-    # Keeps the admin password (and any ad-hoc UI tweak to a key not declared
-    # here) across restarts. Everything declared below is still reapplied on
-    # every start, so Nix stays authoritative for the filter set.
+    # Keeps ad-hoc UI settings across restarts. Everything declared below is
+    # still reapplied on every start.
     mutableSettings = true;
 
     settings = {
@@ -96,20 +85,17 @@ in
         bind_hosts = [ "0.0.0.0" ];
         port = 53;
 
-        # DoH, so resolution never depends on the LAN resolver this service is
-        # replacing, and never loops back through MagicDNS into AdGuard.
+        # DoH, so resolution never loops back through MagicDNS into AdGuard.
         upstream_dns = [
           "https://cloudflare-dns.com/dns-query"
           "https://dns.quad9.net/dns-query"
           # Split DNS: tailnet names stay with MagicDNS, router-local names
-          # stay with the router. Without these, putting the house on AdGuard
-          # would break both. (LAN reverse lookups: local_ptr_upstreams below.)
+          # with the router.
           "[/${tailnetDomain}/]${magicDns}"
           "[/routerlocal/]${lanGateway}"
         ];
-        # PTR lookups for private addresses go only here, never to
-        # upstream_dns: the router knows its DHCP clients' names. Empty, they
-        # went to the host's resolvers and LAN hostnames never resolved.
+        # PTR lookups for private addresses go only to the router, which knows
+        # its DHCP clients' names.
         local_ptr_upstreams = [ lanGateway ];
         # Plain IPs: needed to resolve the DoH hostnames above.
         bootstrap_dns = [
@@ -119,7 +105,7 @@ in
         ];
         upstream_mode = "load_balance";
 
-        # Defence in depth against becoming an open resolver; see header.
+        # Defence in depth against becoming an open resolver; see the header.
         allowed_clients = [
           "127.0.0.1"
           tailnetCidr
@@ -127,9 +113,8 @@ in
           iotCidr
         ];
         ratelimit = 50;
-        # Per client. AdGuard's defaults (24 / 56) bucket a whole /24 together:
-        # on 2026-10-06 a PTR burst from the HA Yellow used up the LAN's shared
-        # 50 q/s and starved every other LAN client for ~10 minutes.
+        # Per client. AdGuard's defaults (24 / 56) bucket a whole /24 together,
+        # so one device's burst starves every other LAN client.
         ratelimit_subnet_len_ipv4 = 32;
         ratelimit_subnet_len_ipv6 = 128;
 
@@ -157,8 +142,8 @@ in
         }
       ];
 
-      # Unblocks affiliate/tracking referral links that the lists above catch
-      # but that break order confirmations and search results.
+      # Unblocks referral links that the lists above catch but that break order
+      # confirmations and search results.
       whitelist_filters = [
         {
           name = "HaGeZi's Allowlist Referral";
@@ -170,15 +155,11 @@ in
     };
   };
 
-  # Check that the house's resolver answers a public name, every minute. The
-  # query runs over `lo` (kakapo asking its own address never touches the NIC
-  # or the interface-scoped firewall), so it is paired with the parts of the
-  # LAN path a loopback query skips: 10.0.0.215 on the LAN NIC, and the rule
-  # opening :53 there. Alerts (kakapo-alert, level fail: push and mail) after
-  # two consecutive failures and once on recovery, not every minute in
-  # between; an alert that is not delivered is retried on the next run.
-  # kakapo resolves independently of AdGuard, so the mail still goes out while
-  # AdGuard is down. health-check leaves its `dns` check to this unit.
+  # Every minute. The query runs over `lo`, so it is paired with the parts of
+  # the LAN path a loopback query skips: 10.0.0.215 on the LAN NIC and the rule
+  # opening :53 there. Alerts (kakapo-alert, level fail) after two consecutive
+  # failures and once on recovery; an undelivered alert is retried on the next
+  # run. health-check leaves its `dns` check to this unit.
   systemd.services.dns-health = {
     description = "Check that AdGuard answers DNS for the house";
     path = [
@@ -248,20 +229,14 @@ in
       OnUnitActiveSec = "1min";
     };
   };
-  # kakapo must not resolve through its own AdGuard. Once the LAN's DHCP hands
-  # out this host as the resolver, a dead AdGuard would otherwise take the
-  # 04:00 `nixos-upgrade` with it -- github.com stops resolving and the failure
-  # is silent, the same shape as the four-month lock outage.
-  #
-  # Nothing is set here because `hosts/kakapo/default.nix` already pins
-  # 1.1.1.2/1.0.0.2 with `networkmanager.dns = "none"` (387d991). That is the
-  # property this service depends on, so the assertion below fails the build if
-  # it is ever removed -- do not re-add `insertNameservers` as a substitute: it
-  # only puts entries *first* and leaves the DHCP-supplied resolver underneath.
+  # kakapo must not resolve through its own AdGuard: a dead AdGuard would
+  # silently take the 04:00 upgrade with it. hosts/kakapo/default.nix pins
+  # 1.1.1.2/1.0.0.2 with `networkmanager.dns = "none"`, and an assertion below
+  # fails the build if that goes. Do not use `insertNameservers` instead: it
+  # leaves the DHCP-supplied resolver underneath.
 
-  # Interface-scoped, so the global allowedTCPPorts stays [ 22 ]. UDP is the
-  # real resolver path; TCP covers truncated answers and zone-transfer-sized
-  # replies, and both must agree or large responses fail intermittently.
+  # Interface-scoped, so the global allowedTCPPorts stays [ 22 ]. TCP covers
+  # truncated answers; without it large responses fail intermittently.
   networking.firewall.interfaces =
     let
       dns = {
@@ -276,8 +251,6 @@ in
 
   assertions = [
     {
-      # modules/services/adguard.nix depends on the host resolving
-      # independently of this service; see the note above.
       assertion = config.networking.networkmanager.dns == "none" && config.networking.nameservers != [ ];
       message = "kakapo would resolve through its own AdGuard: networking.nameservers is unset or NetworkManager still manages resolv.conf, so DHCP can hand this host itself as its resolver. A dead AdGuard then breaks the 04:00 nixos-upgrade silently. Keep the 1.1.1.2/1.0.0.2 pin in hosts/kakapo/default.nix.";
     }
@@ -295,12 +268,8 @@ in
     }
   ];
 
-  # No Prometheus scrape job here on purpose: AdGuard Home 0.107.79 ships no
-  # /metrics endpoint (verified -- the binary links no prometheus client), so a
-  # scrapeConfig pointed at it would sit permanently red on the Grafana
-  # dashboard. Monitoring it would need a separate adguard_exporter sidecar.
+  # No Prometheus scrape job: AdGuard Home ships no /metrics endpoint.
   #
-  # Note also that the UI is reached through the LAN proxy, which connects
-  # from loopback, so AdGuard attributes every *UI-side* query log entry to
-  # 127.0.0.1. Real DNS clients hit :53 directly and are logged correctly.
+  # The UI is reached through the LAN proxy, so AdGuard logs UI-side queries
+  # as 127.0.0.1. Real DNS clients hit :53 directly and are logged correctly.
 }

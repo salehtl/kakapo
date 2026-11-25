@@ -2,25 +2,25 @@
 # without the room scan; github.com/salehtl/midstudy, the module is
 # nix/module.nix there, the hosting notes docs/HANDOFF.md).
 #
-# Unit:    midstudy (the web app, 127.0.0.1:8780; v2 since 2026-11-06: Node 22
-#          with Rust/wasm kernels, calibration still Python). On the first
-#          calibration it starts `midstudy-calib serve`, a warm worker that
-#          keeps MoGe-2 on the RTX 2060 (about 2.7 GB) until 10 idle minutes
-#          pass; jobs run one at a time. midstudy-add runs per library item.
+# Unit:    midstudy (the web app, 127.0.0.1:8780; Node 22 with Rust/wasm
+#          kernels, calibration in Python). On the first calibration it
+#          starts `midstudy-calib serve`, a warm worker that keeps MoGe-2 on
+#          the RTX 2060 (about 2.7 GB) until 10 idle minutes pass; jobs run
+#          one at a time. midstudy-add runs per library item.
 # State:   /var/lib/midstudy (scenes, library, layouts, renders). Each scene
 #          keeps the upload as given (`source.*`, EXIF and location included);
 #          it is never served. Uploaded photos show the inside of the house.
 # Ingress: https://midstudy.salehtl.com through the LAN proxy's `proxied`
-#          list: house network and tailnet, no login (Saleh's choice,
-#          2026-11-05; see lan-proxy.nix).
+#          list: house network and tailnet, no login (Saleh's choice; see
+#          lan-proxy.nix).
 # Deploy:  change the midstudy rev in flake.nix in a PR; merging it deploys.
 # fal:     furniture from photos and Render are paid fal calls, from
 #          secrets/midstudy.yaml as an EnvironmentFile (`midstudy/fal_env`,
 #          one line `FAL_KEY=...`). No practical spend cap, by Saleh's
-#          choice (2026-11-05): dailySpendUsd is the app's maximum, $10,000
-#          per UTC day, so only the fal account limits spend. Until secrets/midstudy.yaml exists, midstudy runs
-#          without a key: those calls answer "FAL_KEY not set", and photo
-#          calibration and GLB/OBJ furniture still work.
+#          choice: dailySpendUsd is the app's maximum, $10,000 per UTC day,
+#          so only the fal account limits spend. Without secrets/midstudy.yaml
+#          midstudy runs without a key: those calls answer "FAL_KEY not set",
+#          and photo calibration and GLB/OBJ furniture still work.
 #
 # Rollback: v1 (the Python server) is midstudy fc82c5c, with the same data files.
 # Rooms:    /var/lib/midstudy/rooms, aligned with MASt3R on the GPU (weights
@@ -37,9 +37,8 @@ in
     # rebinding guard).
     allowedHosts = [ "midstudy.salehtl.com" ];
     falKeyFile = if hasFalKey then config.sops.secrets."midstudy/fal_env".path else null;
-    # No practical cap (Saleh, 2026-11-05): $10,000 is the most the app
-    # accepts. A number keeps it fixed: null would let anyone who can open
-    # the page set the budget from Settings.
+    # The most the app accepts (see "fal" above). A number keeps it fixed: null
+    # would let anyone who can open the page set the budget from Settings.
     dailySpendUsd = 10000;
     # CUDA when torch sees the GPU; a failed CUDA inference is retried on the
     # CPU.

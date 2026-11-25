@@ -54,10 +54,9 @@ let
       GRAMPSWEB_CELERY_CONFIG__broker_url = "redis://grampsweb-redis:6379/0";
       GRAMPSWEB_CELERY_CONFIG__result_backend = "redis://grampsweb-redis:6379/0";
       GRAMPSWEB_RATELIMIT_STORAGE_URI = "redis://grampsweb-redis:6379/1";
-      # Outgoing mail (registration, new-user notices, password resets) via
-      # iCloud SMTP, which only sends as the account's own address. Port 587
-      # needs STARTTLS set explicitly: Gramps Web's default (EMAIL_USE_TLS)
-      # means implicit TLS. Values set in the web UI's settings override these.
+      # iCloud SMTP only sends as the account's own address. Port 587 needs
+      # STARTTLS set explicitly: Gramps Web's default (EMAIL_USE_TLS) means
+      # implicit TLS.
       GRAMPSWEB_EMAIL_HOST = "smtp.mail.me.com";
       GRAMPSWEB_EMAIL_PORT = "587";
       GRAMPSWEB_EMAIL_USE_STARTTLS = "true";
@@ -97,11 +96,10 @@ in
   };
 
   # Each container's entrypoint migrates the user database, and the app creates
-  # the tree if it is missing. Started together on 2026-10-10, the two raced:
-  # the user database was left in a state no later start could migrate (both
-  # crash-looped) and two empty trees were created. dependsOn only orders the
-  # starts, so the worker also waits until the web app answers (`/`: gunicorn
-  # only starts after the migration; the API itself needs a login).
+  # the tree if it is missing. Started together, the two race: the user
+  # database can be left unmigratable, with two empty trees. dependsOn only
+  # orders the starts, so the worker also waits until the web app answers (`/`:
+  # gunicorn only starts after the migration).
   systemd.services.docker-grampsweb-celery = {
     path = [ pkgs.curl ];
     preStart = lib.mkAfter ''

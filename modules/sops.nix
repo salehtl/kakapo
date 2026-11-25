@@ -16,25 +16,23 @@ in
     # One sops file per service under secrets/. There is no defaultSopsFile,
     # so every secret names its own sopsFile.
 
-    # iCloud app-specific password for the upgrade-failure email
-    # (modules/notify.nix). Read per send, so nothing needs restarting.
+    # iCloud app-specific password for alert mail (modules/notify.nix). Read
+    # per send.
     secrets."notify/smtp_password" = {
       sopsFile = ../secrets/notify.yaml;
       key = "notify/smtp_password";
     };
 
-    # healthchecks.io ping URL of the `kakapo` check (modules/notify.nix,
-    # health-check). Anyone who has it can ping the check green or red, so it
-    # is a secret. Read at each run, so nothing needs restarting.
+    # healthchecks.io ping URL (modules/notify.nix, health-check). Anyone who
+    # has it can ping the check green or red. Read at each run.
     secrets."healthchecks/ping_url" = {
       sopsFile = ../secrets/healthchecks.yaml;
       key = "healthchecks/ping_url";
     };
 
-    # Gramps Web's outgoing mail (modules/services/grampsweb.nix): its own iCloud
-    # app-specific password, as GRAMPSWEB_EMAIL_HOST_PASSWORD=... for the
-    # containers' environment file. Separate from notify's, so either can be
-    # revoked alone.
+    # Gramps Web's outgoing mail (modules/services/grampsweb.nix): its own
+    # iCloud app-specific password, as GRAMPSWEB_EMAIL_HOST_PASSWORD=... Separate
+    # from notify's, so either can be revoked alone.
     secrets."grampsweb/env" = {
       sopsFile = ../secrets/grampsweb.yaml;
       key = "grampsweb/env";
@@ -53,17 +51,16 @@ in
       restartUnits = [ "ntfy-sh.service" ];
     };
 
-    # Cloudflare API token for the *.salehtl.com DNS-01 challenge
-    # and the public A records (modules/services/lan-proxy.nix): Zone:DNS:Edit +
-    # Zone:Read on salehtl.com. Read at each use, so nothing needs restarting.
+    # Cloudflare API token for the *.salehtl.com DNS-01 challenge and the public
+    # A records (modules/services/lan-proxy.nix): Zone:DNS:Edit + Zone:Read on
+    # salehtl.com. Read at each use.
     secrets."acme/cloudflare_token" = {
       sopsFile = ../secrets/acme.yaml;
       key = "acme/cloudflare_token";
     };
 
     # CLIProxyAPI (modules/services/cliproxyapi.nix): the API key its clients
-    # send, and the management API key. Root-only; the unit reads them through
-    # LoadCredential= when it writes its config at start.
+    # send, and the management API key.
     secrets."cliproxyapi/api_key" = {
       sopsFile = ../secrets/cliproxyapi.yaml;
       key = "cliproxyapi/api_key";
@@ -73,18 +70,14 @@ in
         "t3code.service"
       ];
     };
-    # T3 Code's GitHub login (modules/services/t3code.nix): a fine-grained
-    # token of Saleh's, scoped to chosen repos, with no `statuses` or
-    # `workflows` permission. Root-only; the unit reads it through
-    # LoadCredential= and exports it as GH_TOKEN.
+    # T3 Code's GitHub token (modules/services/t3code.nix), exported as
+    # GH_TOKEN.
     secrets."t3code/github_token" = {
       sopsFile = ../secrets/t3code.yaml;
       key = "t3code/github_token";
       restartUnits = [ "t3code.service" ];
     };
-    # The same for the Hasala org's repositories (github.com/Hasala): a
-    # fine-grained token has one owner. Its own file, so adding it needed no
-    # decryption of t3code.yaml.
+    # The same for the Hasala org's repositories, in its own file.
     secrets."t3code/github_token_hasala" = {
       sopsFile = ../secrets/t3code-hasala.yaml;
       key = "t3code/github_token_hasala";

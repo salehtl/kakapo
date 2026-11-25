@@ -1,3 +1,4 @@
+# Test the path: sudo kakapo-alert info test "..."
 { config, pkgs, ... }:
 let
   to = "salehtl@icloud.com";

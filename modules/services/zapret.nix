@@ -29,6 +29,10 @@
 #
 # Out-of-band: the exit node must be approved in the Tailscale admin console
 # (Machines -> kakapo -> Edit route settings -> Use as exit node).
+#
+# The shorter `1,midsld` split fails TLS 1.2.
+# The exit node must stay approved in the Tailscale admin console:
+#   tailscale status --json | grep -A4 PrimaryRoutes    (lists 0.0.0.0/0)
 { config, ... }:
 let
   qnum = toString config.services.zapret.qnum;

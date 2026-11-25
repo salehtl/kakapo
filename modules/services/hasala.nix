@@ -57,6 +57,11 @@
 # Secrets:  secrets/hasala.yaml (modules/sops.nix), all through LoadCredential=.
 # Ports:    127.0.0.1 only: API 8471, metrics 9471, cloudflared metrics 9472,
 #           console 8472, console healthz 9473.
+#
+# Never bind 127.0.0.1:8471 from anything else: the tunnel routes it publicly
+# even while hasalad is down. No other app may be added to the hasala-qa
+# tunnel. A missing media disk stops hasalad from starting (RequiresMountsFor).
+# Check a release with `sudo hasala-admin version`.
 { config, lib, ... }:
 let
   cfg = config.services.hasala;

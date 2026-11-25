@@ -30,6 +30,11 @@
 #   LAN address comes from DHCP: pinning 10.0.0.215 here would silently take
 #   DNS down for the whole house on a lease change. The interface-scoped
 #   firewall is the control that matters and is immune to that.
+#
+# Outside the flake: UniFi hands out 10.0.0.215 as DNS on the Default and IoT
+# networks, with a fixed reservation for kakapo, so every device in the house
+# resolves here. There is no secondary resolver on purpose: a non-filtering
+# fallback would make filtering inconsistent. Guest stays on 1.1.1.3.
 {
   config,
   lib,

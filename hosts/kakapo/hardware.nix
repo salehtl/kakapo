@@ -1,3 +1,6 @@
+# The host carries only the NVIDIA driver. CUDA belongs in each project's
+# flake: never add host packages that pull in the CUDA toolkit
+# (nvtopPackages.nvidia, for example).
 {
   config,
   lib,

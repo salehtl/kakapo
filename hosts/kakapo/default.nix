@@ -34,35 +34,22 @@
   networking.hostName = "kakapo";
   networking.networkmanager.enable = true;
 
-  # Resolve through Cloudflare's filtering resolvers, not through whatever DHCP
-  # hands out. The LAN resolver DHCP was advertising (10.0.0.10, a DNS add-on on
-  # the Home Assistant Pi) stopped answering on :53 on 2026-10-04 and took this
-  # host's name resolution with it — including the 04:00 autoUpgrade's ability
-  # to fetch the flake. A server's deploy path should not depend on an add-on
-  # running on an appliance.
-  #
-  # `dns = "none"` is the load-bearing half: `networking.nameservers` registers
-  # a resolvconf entry at metric 1, which only puts these servers *first* —
-  # NetworkManager still appends the DHCP one underneath. Telling NM to stay out
-  # of resolv.conf entirely is what actually removes 10.0.0.10.
-  #
-  # Tailscale leaves resolv.conf alone (`--accept-dns=false` in base.nix) and
-  # keeps serving MagicDNS on 100.100.100.100, which AdGuard uses for *.ts.net.
-  #
-  # IPv4 only on purpose — this host has no IPv6 default route, so v6 resolvers
-  # would be dead entries that cost a timeout each.
+  # Resolve through Cloudflare's filtering resolvers, never through what DHCP
+  # hands out: the 04:00 upgrade must not depend on a LAN resolver, least of
+  # all kakapo's own AdGuard (asserted in modules/services/adguard.nix).
+  # `dns = "none"` is the load-bearing half: `networking.nameservers` only puts
+  # these servers first, and NetworkManager would still append the DHCP one.
+  # Tailscale leaves resolv.conf alone (`--accept-dns=false` in base.nix).
+  # IPv4 only: this host has no IPv6 default route.
   networking.networkmanager.dns = "none";
   networking.nameservers = [
     "1.1.1.2" # Cloudflare, malware-filtering
     "1.0.0.2"
   ];
 
-  # rabbit (Saleh's Mac) by its MagicDNS name, for kakapo itself: the host
-  # does not use MagicDNS (above), and T3 Code links to another machine's t3
-  # only by https or a Tailscale name, never a bare tailnet IP over http
-  # (2026-11-19). The LAN gains nothing new: AdGuard already answers this
-  # name with the same address through its *.ts.net forward. A tailnet IP is
-  # stable until the node re-registers; if rabbit gets a new one
+  # rabbit (Saleh's Mac) by its MagicDNS name, for kakapo itself, which does
+  # not use MagicDNS: T3 Code links to another machine's t3 only by https or a
+  # Tailscale name. If rabbit re-registers and gets a new address
   # (`tailscale status`), update it here.
   networking.hosts."100.118.80.39" = [ "rabbit.marmoset-paradise.ts.net" ];
 
@@ -82,10 +69,10 @@
     ];
     openssh.authorizedKeys.keys = [
       "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAIN0xPWnKwUvjBNhRRyhuXcgdsCwl78vxow4N2EB7SX2IAAAACnNzaDprYWthcG8= saleh kakapo-yubikey"
-      # Second YubiKey (2026-10-18), kept apart from the first as a backup.
+      # Second YubiKey, kept apart from the first as a backup.
       "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAIM3dCHcJciaFpvyZgtrpx9aB8NeJCvOvf4GwDTjINJvZAAAAEXNzaDprYWthcG8tYmFja3Vw saleh kakapo-yubikey-2"
-      # A YubiKey used from Termius on Saleh's iPhone (2026-11-02). Termius makes
-      # its own FIDO2 key, so this is separate from the two keys above.
+      # A YubiKey used from Termius on Saleh's iPhone. Termius makes its own
+      # FIDO2 key, so this is separate from the two keys above.
       "sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20AAAAIbmlzdHAyNTYAAABBBKPG9xjjNKWrRf/THvkJEmPlDD4NueoP3iN/L4Sf6Jw7T04HHJUXEyd3PcR0G2Mmy87Jl4QNoM4fF7xEmUWw6qoAAAALdGVybWl1cy5jb20= saleh kakapo-iphone-yubikey"
     ];
   };
@@ -107,9 +94,8 @@
 
   virtualisation.docker.enable = true;
 
-  # Allow unfree packages by name rather than all unfree packages. Only this
-  # host's own package set: claude-code comes from pkgs.unstable, which has its
-  # own predicate in flake.nix.
+  # Unfree packages by name. Only this host's own package set: pkgs.unstable
+  # has its own predicate in flake.nix.
   nixpkgs.config.allowUnfreePredicate =
     pkg:
     builtins.elem (lib.getName pkg) [
@@ -119,16 +105,14 @@
       # T3 Code's Antigravity runtime (modules/services/t3code.nix).
       "agy-acp-server"
     ];
-  # Project dev environments (modules/claude-projects.md): a project's
-  # committed `.envrc` (`use flake`) loads its flake devShell on `cd`.
-  # nix-direnv (on by default) caches it and roots it against GC while the
-  # project's .direnv/ exists, so deleting the project frees its tools.
+  # Project dev environments (modules/claude-projects.md): a project's `.envrc`
+  # loads its flake devShell on `cd`. nix-direnv roots it against GC while the
+  # project's .direnv/ exists.
   programs.direnv.enable = true;
 
   # For Termius on the phone, so a session survives network changes. The login
-  # is still sshd's. No firewall opening: mosh is only used over the tailnet, and
-  # tailscaled's ts-input chain accepts tailscale0 ahead of nixos-fw. Termius
-  # starts `mosh-server new -s`, which binds the address the SSH login came in on.
+  # is still sshd's. No firewall opening: mosh is used only over the tailnet,
+  # where tailscaled's ts-input chain accepts tailscale0 ahead of nixos-fw.
   programs.mosh = {
     enable = true;
     openFirewall = false;
@@ -142,10 +126,9 @@
     pkgs.gh
   ];
 
-  # Deliberately every interface, not just tailscale0. Tailscale is the sole
-  # remote-access path, so a LAN fallback is the recovery route when it is
-  # unavailable; this box sits on a trusted home LAN and SSH is key-only with
-  # a YubiKey, which bounds the exposure. Do not narrow this to the tailnet.
+  # Every interface on purpose, not just tailscale0: the LAN is the recovery
+  # route when Tailscale is down. SSH is key-only with a YubiKey. Do not narrow
+  # this to the tailnet.
   networking.firewall.allowedTCPPorts = [ 22 ];
 
   system.stateVersion = "25.11";

@@ -4,19 +4,10 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05";
 
-    # Claude Code, herdr (not in 26.05), tuios (26.05 has only 0.7.0), and Immich with its NixOS module.
-    # The 26.05 release branch does not backport Claude Code: it sat on 2.1.223
-    # while upstream shipped 2.1.287, and a `nix flake update` moved the
-    # whole release forward three days without moving this package at all. The
-    # tool releases several times a week, so tracking it on the release branch
-    # means running months-old builds.
-    #
-    # Deliberately NOT `inputs.nixpkgs.follows = "nixpkgs"` — the point is a
-    # second, newer package set, exposed as `pkgs.unstable`. Used for those
-    # three only (and the Immich module swap below); nothing else on this
-    # host comes from unstable.
-    # `nixpkgs-unstable` rather than `master` because it is the channel Hydra
-    # has actually built.
+    # A second, newer package set, exposed as `pkgs.unstable`, for what 26.05
+    # lacks or does not keep current (Claude Code, Immich 3 and its module,
+    # ...). Deliberately NOT `inputs.nixpkgs.follows`. `nixpkgs-unstable`
+    # rather than `master`: it is the channel Hydra has built.
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
@@ -28,20 +19,15 @@
     };
     # Hasala's QA backend (modules/services/hasala.nix), for its NixOS module.
     # Pinned to a commit, not a branch: `nix flake update` cannot move a rev,
-    # so the weekly lock bump never deploys unreleased hasala work. Releasing
-    # to QA is a PR that changes this rev to a CI-green commit of hasala main:
-    # .github/workflows/hasala-release.yml opens one every hour when there is
-    # a new one, and it auto-merges unless it changes a migration or the module.
-    # (hasala's infra/qa/HOST-PR.md suggests a release branch such as `qa`;
-    # none exists yet, and once one does it can replace the rev.)
+    # so the weekly lock bump never deploys unreleased hasala work. A release
+    # is a PR that changes this rev (.github/workflows/hasala-release.yml).
     # Deliberately NO `follows`: the host runs exactly the closure hasala's CI
-    # built and tested (its own nixos-26.05 lock, Go 1.27 from nixos-unstable).
+    # built and tested.
     hasala.url = "github:Hasala/hasala/a41cae35f6b7d11fbcae97812c5166f2d91b3aed";
-    # midstudy: the furniture planner on a room photo, with MoGe-2 on the GPU
-    # (modules/services/midstudy.nix), for its NixOS module. Pinned to a
-    # commit like hasala; release by changing the rev. Deliberately NO
-    # `follows`: its CUDA torch comes from its own pinned nixpkgs, so a
-    # nixpkgs bump here never rebuilds the CUDA libraries (hours).
+    # midstudy (modules/services/midstudy.nix), for its NixOS module. Pinned to
+    # a commit like hasala. Deliberately NO `follows`: its CUDA torch comes
+    # from its own pinned nixpkgs, so a nixpkgs bump here never rebuilds the
+    # CUDA libraries (hours).
     midstudy.url = "github:salehtl/midstudy/96470c30213a9a075aaf11ad6581bd97012b4967";
   };
 
@@ -62,34 +48,26 @@
         "aarch64-darwin"
       ];
 
-      # Exposed to every module as `pkgs.unstable` (overlay below), so a package
-      # taken from unstable is named as such where it is used:
-      # `pkgs.unstable.claude-code`, never a silent override of `pkgs.<name>`.
-      #
-      # A separate import rather than `nixpkgs-unstable.legacyPackages` because
-      # claude-code is unfree, and `nixpkgs.config.allowUnfreePredicate` in
-      # hosts/kakapo only governs the host's own package set; a second package
-      # set carries its own config. The predicate is deliberately just the
-      # unfree packages this host takes from unstable, not a copy of the
-      # host's list.
+      # `pkgs.unstable` (overlay below): a package from unstable is named as
+      # such where it is used, never a silent override of `pkgs.<name>`.
+      # A separate import because claude-code is unfree and a second package
+      # set carries its own config. The predicate lists only the unfree
+      # packages this host takes from unstable.
       unstableFor =
         system:
         import nixpkgs-unstable {
           inherit system;
           config.allowUnfreePredicate = pkg: nixpkgs.lib.getName pkg == "claude-code";
           overlays = [
-            # claude-code's launcher prepends alsa-lib (audio) to
-            # LD_LIBRARY_PATH, and every command an agent runs inherits it:
-            # programs from other nixpkgs revisions then load that libasound
-            # and fail on a glibc mismatch (Chromium did, 2026-10-07). kakapo is
-            # headless with no audio, so give it an empty directory instead.
+            # claude-code's launcher prepends alsa-lib to LD_LIBRARY_PATH, and
+            # every command an agent runs inherits it: programs from other
+            # nixpkgs revisions then load that libasound and fail on a glibc
+            # mismatch. kakapo has no audio, so give it an empty directory.
             #
-            # The version is ours, not nixpkgs-unstable's: the package reads
-            # Anthropic's release manifest (version + per-platform SHA-256),
-            # and pkgs/claude-code/manifest.json is the one for the version
-            # kakapo runs. scripts/bump-apps.sh moves it to the `latest`
-            # channel every day (update-flake-lock.yml, `apps` run), so Claude
-            # Code no longer waits for nixpkgs-unstable and the weekly lock.
+            # The version is ours, not nixpkgs-unstable's:
+            # pkgs/claude-code/manifest.json is Anthropic's release manifest for
+            # the version kakapo runs, and scripts/bump-apps.sh moves it daily
+            # (update-flake-lock.yml, `apps` run).
             (final: prev: {
               claude-code = prev.claude-code.override {
                 alsa-lib = final.emptyDirectory;
@@ -110,9 +88,8 @@
           hasala.nixosModules.default
           midstudy.nixosModules.default
           {
-            # Immich 3 with the module written for it. 26.05 ships Immich 2.7.5,
-            # marked insecure (two CVEs, 2.x is unmaintained); Immich 3 lands in
-            # 26.11. Drop this, and pkgs.unstable.immich in
+            # Immich 3 with the module written for it: 26.05 ships the insecure,
+            # unmaintained 2.7.5. Drop this, and pkgs.unstable.immich in
             # modules/services/immich.nix, once on 26.11.
             disabledModules = [ "services/web-apps/immich.nix" ];
             imports = [ "${nixpkgs-unstable}/nixos/modules/services/web-apps/immich.nix" ];

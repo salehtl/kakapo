@@ -1,4 +1,4 @@
-# CLIProxyAPI (github.com/router-for-me/CLIProxyAPI, 2026-11-19): turns the
+# CLIProxyAPI (github.com/router-for-me/CLIProxyAPI): turns the
 # OAuth logins of subscription CLIs (Claude Code, Codex, ...) into OpenAI-,
 # Anthropic- and Gemini-compatible HTTP APIs, so Saleh's other machines can
 # point their tools at kakapo. Package and NixOS module from nixpkgs-unstable
@@ -52,10 +52,8 @@ in
           logging-to-file = false;
           request-log = false;
         };
-        # Per-account and per-model request and token counts, so the load
-        # balancing across logins is visible in the TUI and the management
-        # API (2026-11-23, Saleh's choice). Counts only, no prompts, kept in
-        # memory and lost at each restart.
+        # Per-account and per-model request and token counts, for the TUI and
+        # the management API. Counts only, no prompts, kept in memory.
         usage.usage-statistics-enabled = true;
       };
     };

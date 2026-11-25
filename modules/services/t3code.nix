@@ -1,60 +1,48 @@
-# T3 Code (github.com/pingdotgg/t3code, 2026-11-19): a web UI for coding
-# agents (Codex, Claude Code). Package from nixpkgs-unstable (not in 26.05);
-# only its headless server (`t3 serve`) runs here, not the Electron app.
+# T3 Code (github.com/pingdotgg/t3code): a web UI for coding agents (Codex,
+# Claude Code). Package from nixpkgs-unstable (not in 26.05); only its
+# headless server (`t3 serve`) runs here, not the Electron app.
 #
-# User:    its own system user `t3code`, by Saleh's choice (2026-11-19): no
-#          sudo, no access to /home, and NoNewPrivileges. Agents run shell
-#          commands as this user, so it must never join `wheel`, `docker` or
-#          any group that reaches root or the house DNS.
+# User:    its own system user `t3code`, not saleh: saleh has passwordless
+#          sudo, and agents run shell commands from a web page. No sudo, no
+#          access to /home, NoNewPrivileges. It must never join `wheel`,
+#          `docker` or any group that reaches root or the house DNS.
 # State:   /var/lib/t3code (0700, t3code): t3's data in `t3/`, the agents'
 #          own logins in the home directory (`.codex`, `.claude`), and the
-#          workspace in `work/`. Claude Code uses CLIProxyAPI on loopback
-#          with its API key, so it needs no login here (2026-11-19). Codex
-#          logs in out of band (commands below). Projects are cloned
-#          to /var/lib/t3code/<name>, so the project rules
-#          (modules/claude-projects.md) are linked as
-#          /var/lib/t3code/CLAUDE.md: Claude Code loads every CLAUDE.md from
-#          the working directory up, and ~/src/CLAUDE.md (modules/claude.nix)
-#          exists only for normal users.
+#          workspace in `work/`. Projects are cloned to /var/lib/t3code/<name>,
+#          so the project rules (modules/claude-projects.md) are linked as
+#          /var/lib/t3code/CLAUDE.md.
+# Logins:  Claude Code uses CLIProxyAPI on loopback with its API key, so it
+#          needs none.
+#          Codex:  sudo -u t3code -H codex login --device-auth
+#          Gemini: sign in by hand in t3's provider settings. Never its
+#                  "Install" button: the flake owns the Antigravity runtime.
 # Limits:  every agent of every session is in this one cgroup, and the host
-#          has no swap. With MemoryMax=8G and the default OOMPolicy=stop, two
-#          parallel Nix evaluations stopped the whole unit twice on
-#          2026-11-22, which ended every agent session at once. Now 14G
-#          (throttle and reclaim) / 16G (hard) of the host's 31 GiB, and
-#          OOMPolicy=continue: the kernel kills one process and the unit
-#          stays up. CPUWeight/IOWeight are half the default, so under
-#          contention each house service gets twice this unit's share
-#          (IOWeight does nothing until a disk uses BFQ or io.cost). Builds
-#          that agents start run in nix-daemon.service, outside these limits.
-#          The unit restarts when an activation changes it (restartIfChanged
-#          is the default), which ends every running agent session.
+#          has no swap. 14G (throttle and reclaim) / 16G (hard) of the host's
+#          31 GiB, and OOMPolicy=continue: the kernel kills one process and
+#          the unit stays up (the default, stop, ends every agent session at
+#          once). CPUWeight/IOWeight are half the default, so under contention
+#          each house service gets twice this unit's share (IOWeight does
+#          nothing until a disk uses BFQ or io.cost). Builds that agents start
+#          run in nix-daemon.service, outside these limits. An activation
+#          that changes the unit restarts it, which ends every running agent
+#          session.
 # GitHub:  a fine-grained token of Saleh's (secrets/t3code.yaml), scoped to
-#          chosen repos with no `statuses` or `workflows` permission, so a
-#          t3 agent can push branches and open PRs but cannot make a PR green
-#          and merge it (write access to kakapo with statuses is root here).
-#          It reaches the unit only through LoadCredential= as GH_TOKEN.
-#          A fine-grained token has one owner, so the Hasala org
-#          (github.com/Hasala, since 2026-11-22) has its own token
-#          (secrets/t3code-hasala.yaml, GH_TOKEN_HASALA) with the same
-#          limits. `gh` (ghByOwner) and git (gitCredential) pick the token
-#          by the repository's owner. Never a copy of Saleh's own `gh` login
-#          or SSH key.
+#          chosen repos: Contents and Pull requests write only, no `statuses`
+#          or `workflows`, so a t3 agent can push branches and open PRs but
+#          cannot make a PR green and merge it (write access to kakapo with
+#          statuses is root here). CI and guarded-test for a t3 agent's PR run
+#          from Saleh's own session. The token expires: rotate it with
+#          `sops secrets/t3code.yaml`. A fine-grained token has one owner, so
+#          the Hasala org (github.com/Hasala) has its own
+#          (secrets/t3code-hasala.yaml, GH_TOKEN_HASALA) with the same limits;
+#          `gh` (ghByOwner) and git (gitCredential) pick the token by the
+#          repository's owner. Never a copy of Saleh's own `gh` login or SSH
+#          key.
 # Ingress: tailnet only, https://t3.salehtl.com via the LAN proxy's
 #          `tailnetOnly` list (tailscale-nginx-auth), plus t3's own pairing:
-#          a browser must present a one-time pairing token first
-#          (`t3code-pair` on kakapo). Never `--lan`, `--tailscale-serve` or
-#          `t3 up`: they bind off loopback or use tailscale serve.
-#
-# Own user, not saleh: saleh has passwordless sudo, and agents run shell
-#          commands from a web page.
-# Pairing: `t3code-pair` mints a 5-minute token and prints the URL to open.
-#          Never `t3 pair --tailscale`.
-# Codex:   sudo -u t3code -H codex login --device-auth
-# Gemini:  sign in by hand in t3's provider settings. Never its "Install"
-#          button: the flake owns the Antigravity runtime.
-# GitHub:  the token has Contents and Pull requests write only, and expires.
-#          Rotate it with `sops secrets/t3code.yaml`. CI and guarded-test for a
-#          t3 agent's PR run from Saleh's own session.
+#          `t3code-pair` on kakapo mints a 5-minute token and prints the URL
+#          to open. Never `t3 pair --tailscale`, `--lan`, `--tailscale-serve`
+#          or `t3 up`: they bind off loopback or use tailscale serve.
 {
   config,
   lib,
@@ -66,9 +54,8 @@ let
   stateDir = "/var/lib/t3code";
   baseDir = "${stateDir}/t3";
   workDir = "${stateDir}/work";
-  # GitHub tokens by repository owner. GH_TOKEN is Saleh's personal token;
-  # a repository of the Hasala org uses GH_TOKEN_HASALA. Both are set in the
-  # unit's script from LoadCredential=.
+  # GitHub tokens by repository owner: GH_TOKEN is Saleh's, GH_TOKEN_HASALA the
+  # Hasala org's. Both are set in the unit's script from LoadCredential=.
   ghByOwner = pkgs.writeShellScriptBin "gh" ''
     # The owner comes only from places that name a repository, never from
     # free text (a --title or --body can hold "Owner/repo" or a URL):
@@ -138,16 +125,15 @@ let
   t3 = lib.getExe' package "t3";
 
   # Google's Antigravity ACP runtime, which t3's `antigravity` provider runs
-  # for Gemini with Saleh's Google subscription (2026-11-22). t3 would
-  # download it into its state on its own ("Install" in the provider
-  # settings); this is the same release, pinned to the version and hash
-  # t3 0.1.8 carries (`antigravityRelease.ts`), so the flake owns it. t3
-  # finds `agy_acp_server.par` on PATH and takes `localharness_external`
+  # for Gemini. t3 would download it into its state on its own ("Install" in
+  # the provider settings); this is the same release, pinned to the version and
+  # hash t3 carries (`antigravityRelease.ts`), so the flake owns it. Bump it
+  # with t3: take the linux-x64 url and sha256 from its release.
+  # t3 finds `agy_acp_server.par` on PATH and takes `localharness_external`
   # from the directory it resolves to, so both stay side by side.
-  # Not patched: the harness is static and the server needs only glibc,
-  # which nix-ld provides (modules/claude.nix). patchelf would also move
-  # the archive the .par carries at its end. About 1 GB in the store.
-  # Bump it with t3: take the linux-x64 url and sha256 from its release.
+  # Not patched: the server needs only glibc, which nix-ld provides
+  # (modules/claude.nix), and patchelf would move the archive the .par carries
+  # at its end. About 1 GB in the store.
   antigravityAcp = pkgs.stdenvNoCC.mkDerivation rec {
     pname = "agy-acp-server";
     version = "1.4.5";
@@ -198,8 +184,7 @@ in
       group = "t3code";
       mode = "0700";
     };
-    # The project rules, for every session under the state directory. Same
-    # line as ~/src/CLAUDE.md in modules/claude.nix.
+    # The project rules, as ~/src/CLAUDE.md in modules/claude.nix.
     "${stateDir}/CLAUDE.md"."L+".argument = "/etc/claude-code/projects.md";
   };
 
@@ -208,9 +193,8 @@ in
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
     wantedBy = [ "multi-user.target" ];
-    # What the agents run: a basic shell kit (jq, bc, unzip and file since
-    # 2026-11-22, because agents and project scripts kept failing without
-    # them). Projects bring the rest from their own flakes.
+    # What the agents run: a basic shell kit. Projects bring the rest from
+    # their own flakes.
     path = [
       package
       antigravityAcp
@@ -233,9 +217,8 @@ in
     environment = {
       HOME = stateDir;
       DISABLE_AUTOUPDATER = "1";
-      # Claude Code talks to CLIProxyAPI (modules/services/cliproxyapi.nix),
-      # which holds Saleh's Claude login, so `t3code` needs no login of its
-      # own. The key comes from the credential below, set in the script.
+      # Claude Code talks to CLIProxyAPI, which holds Saleh's Claude login. The
+      # key comes from the credential below, set in the script.
       ANTHROPIC_BASE_URL = "http://127.0.0.1:${toString config.services.cliproxyapi.settings.server.port}";
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1";
       # HTTPS git to github.com authenticates with the owner's token (set

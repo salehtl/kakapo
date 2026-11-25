@@ -49,11 +49,10 @@ in
   # Hasala's own notices (hasala-health findings, early-access requests)
   # come from its module in github:Hasala/hasala, in its own format.
   #
-  # Mail goes out through iCloud SMTP as the recipient, so no new account is
-  # needed. The password is an Apple app-specific password, never the Apple ID
-  # password. /etc/msmtprc is world-readable but holds only `passwordeval`; the
-  # secret itself is root-only (modules/sops.nix), so only root can send.
-  # Outbound 587 only. Nothing here listens, so the firewall is unchanged.
+  # Mail goes out through iCloud SMTP as the recipient, with an Apple
+  # app-specific password. /etc/msmtprc is world-readable but holds only
+  # `passwordeval`; the secret is root-only (modules/sops.nix), so only root
+  # can send. Outbound 587 only.
 
   programs.msmtp = {
     enable = true;
@@ -95,26 +94,23 @@ in
   systemd.services.nixos-upgrade.onFailure = [ "notify-failure@%n.service" ];
 
   # health-check: every 15 minutes, the kakapo-health skill's own check
-  # (claude/skills/kakapo-health/scripts/check.sh --offline), so what Claude
-  # reports on request and what the phone is told are the same checks.
+  # (check.sh --offline), so what Claude reports on request and what the phone
+  # is told are the same checks.
   #
-  # One alert per change: it alerts when a check enters WARN or FAIL, changes
-  # between them, or all checks are OK again. It compares status and check
-  # name only, not the detail text, which carries live numbers.
+  # One alert per change: when a check enters WARN or FAIL, changes between
+  # them, or all checks are OK again. It compares status and check name only,
+  # not the detail text, which carries live numbers.
   #
-  # It leaves out what another alert already sends, so one fault gives one
-  # alert:
-  #   - dns: dns-health (modules/services/adguard.nix) alerts within 2 minutes;
+  # It leaves out what another alert already sends:
+  #   - dns: dns-health (modules/services/adguard.nix);
   #   - generation: WARNs during every guarded test, which is routine;
   #   - failed_units, upgrade "last result", hasala "failed:": a unit with
   #     notify-failure@ has already alerted for itself.
   # The daily health-report still lists everything.
   #
   # Every run also pings healthchecks.io, the one alert path that does not
-  # depend on kakapo: ntfy and the mail both run here, so a dead host, disk or
-  # uplink sends nothing. healthchecks.io alerts when the pings stop (period
-  # 15 min, grace 30 min), and on a /fail ping, which a FAIL or a check that
-  # cannot run sends, with the full check output.
+  # depend on kakapo. It alerts when the pings stop (period 15 min, grace
+  # 30 min) and on a /fail ping, which a FAIL or a check that cannot run sends.
   #
   # The unit succeeds on WARN/FAIL (check.sh exit 1/2); it fails, and so
   # alerts through notify-failure@, only when the check cannot run at all.
@@ -196,14 +192,12 @@ in
     };
   };
 
-  # health-report: the daily status at 09:00, whatever the state: the
-  # verdict, every WARN/FAIL (also the ones health-check leaves to other
-  # alerts), the facts worth a glance, open PRs and master CI. It runs
-  # check.sh online, so the generation check also compares with master.
-  #
-  # It also names a bump PR that did not merge itself (update-flake-lock.yml
-  # holds it with `needs-review`), so nixpkgs or Claude Code does not drift.
-  # Level `info` when nothing needs Saleh, else `warn`; never mailed.
+  # health-report: the daily status at 09:00, whatever the state: the verdict,
+  # every WARN/FAIL (also the ones health-check leaves to other alerts), open
+  # PRs and master CI. It runs check.sh online, so the generation check also
+  # compares with master. It names a bump PR that did not merge itself
+  # (`needs-review`). Level `info` when nothing needs Saleh, else `warn`;
+  # never mailed.
   #
   # root has no gh login, so PRs and CI come from the public GitHub API. A PR
   # from a fork shows by number only, and a bump PR counts only from this

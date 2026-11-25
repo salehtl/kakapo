@@ -1,12 +1,10 @@
 # Which root certificates this host trusts, and making sure every program on it
 # uses that one list.
 #
-# Distrust: nixpkgs owns the list now. security/ca.nix blacklists "Comodo AAA
-# Services root" itself, and nss-cacert 3.131.1 dropped the emSign roots. Never
-# name a root here that nss-cacert does not ship: the build fails with "Certs in
-# blocklist but not in cert store" (it broke the flake.lock bump of 2026-11-01).
-# Hasala's module still blacklists both roots by default, and it fails the same
-# way, so services.hasala.hardening.distrustedCARoots stays empty below.
+# Distrust: nixpkgs owns the list. Never name a root here that nss-cacert does
+# not ship: the build fails with "Certs in blocklist but not in cert store".
+# Hasala's module blacklists two such roots by default, so
+# services.hasala.hardening.distrustedCARoots stays empty below.
 #
 # One list: the system bundle (/etc/ssl/certs/ca-certificates.crt) is what
 # OpenSSL, curl, nix, Go programs and nixpkgs' Node (built with

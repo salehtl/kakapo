@@ -14,7 +14,14 @@
 #          proxy refuses the management API and its web panel
 #          (serverExtra.cliproxy in lan-proxy.nix), so provider logins and
 #          settings are changed only from kakapo itself, on 127.0.0.1:8317.
-# Logins:  out of band, once per provider, on kakapo (CLAUDE.md, "CLIProxyAPI").
+# Logins:  out of band, once per provider, on kakapo (commands below).
+#
+# Provider logins, on kakapo only:
+#   sudo -u cliproxyapi cliproxyapi -config /var/lib/cliproxyapi/config.yaml -claude-login -no-browser
+#   then paste the localhost URL the browser ends on. Codex: -codex-device-login.
+#   The service picks the token up without a restart.
+# Usage TUI: the same command with `-tui -management-base-url http://127.0.0.1:8317`.
+# Client API key: sudo cat /run/secrets/cliproxyapi/api_key
 { config, pkgs, ... }:
 let
   cfg = config.services.cliproxyapi;

@@ -10,7 +10,7 @@
 #          own logins in the home directory (`.codex`, `.claude`), and the
 #          workspace in `work/`. Claude Code uses CLIProxyAPI on loopback
 #          with its API key, so it needs no login here (2026-11-19). Codex
-#          logs in out of band (CLAUDE.md, "T3 Code"). Projects are cloned
+#          logs in out of band (commands below). Projects are cloned
 #          to /var/lib/t3code/<name>, so the project rules
 #          (modules/claude-projects.md) are linked as
 #          /var/lib/t3code/CLAUDE.md: Claude Code loads every CLAUDE.md from
@@ -44,6 +44,17 @@
 #          a browser must present a one-time pairing token first
 #          (`t3code-pair` on kakapo). Never `--lan`, `--tailscale-serve` or
 #          `t3 up`: they bind off loopback or use tailscale serve.
+#
+# Own user, not saleh: saleh has passwordless sudo, and agents run shell
+#          commands from a web page.
+# Pairing: `t3code-pair` mints a 5-minute token and prints the URL to open.
+#          Never `t3 pair --tailscale`.
+# Codex:   sudo -u t3code -H codex login --device-auth
+# Gemini:  sign in by hand in t3's provider settings. Never its "Install"
+#          button: the flake owns the Antigravity runtime.
+# GitHub:  the token has Contents and Pull requests write only, and expires.
+#          Rotate it with `sops secrets/t3code.yaml`. CI and guarded-test for a
+#          t3 agent's PR run from Saleh's own session.
 {
   config,
   lib,

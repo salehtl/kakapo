@@ -24,6 +24,8 @@ _:
 let
   bundle = "/etc/ssl/certs/ca-certificates.crt";
 in
+# A new container needs the bundle mounted read-only plus SSL_CERT_FILE and
+# REQUESTS_CA_BUNDLE, as Gramps Web has.
 {
   services.hasala.hardening.distrustedCARoots = [ ];
 

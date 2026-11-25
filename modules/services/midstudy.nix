@@ -21,6 +21,10 @@
 #          per UTC day, so only the fal account limits spend. Until secrets/midstudy.yaml exists, midstudy runs
 #          without a key: those calls answer "FAL_KEY not set", and photo
 #          calibration and GLB/OBJ furniture still work.
+#
+# Rollback: v1 (the Python server) is midstudy fc82c5c, with the same data files.
+# Rooms:    /var/lib/midstudy/rooms, aligned with MASt3R on the GPU (weights
+#           CC BY-NC-SA, personal use). Six photos peak near 5.6 of its 6 GB.
 { config, lib, ... }:
 let
   hasFalKey = builtins.pathExists ../../secrets/midstudy.yaml;

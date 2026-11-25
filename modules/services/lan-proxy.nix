@@ -82,6 +82,14 @@
 # https://<name>.salehtl.com, proxied to 127.0.0.1:<port>, and its DNS record
 # appears on the next activation. Removing it deletes the record. A service on
 # another LAN machine goes in `lanUpstreams` as `<name> = "http://<ip>:<port>";`.
+#
+# Outside the flake:
+#   If the UniFi reservation for 10.0.0.215 changes, update lanAddress.
+#   The subnet route must stay approved in the Tailscale admin console:
+#     tailscale status --json | grep -A2 PrimaryRoutes   (lists 10.0.0.215/32)
+#   If the tailnet policy stops being allow-all, the route needs an ACL entry.
+#   Home Assistant must have forwarded headers on and trust 10.0.0.215; it
+#   applies that only on a full restart.
 {
   config,
   lib,

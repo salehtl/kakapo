@@ -1,3 +1,5 @@
+# Timers and workflows call the skills' scripts: keep their output formats and
+# exit codes stable.
 { config, lib, ... }:
 let
   host = config.networking.hostName;

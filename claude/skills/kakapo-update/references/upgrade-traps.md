@@ -1,20 +1,13 @@
 # Upgrade traps, per component
 
 Read the entry for every component that `version-jumps.py` lists under
-WATCHED or MAJOR. Each says where its changes are written down, what has
-broken before (here or upstream), and how to check it after the test.
-
-Contents: nixpkgs itself · Immich · PostgreSQL and its extensions · kernel
-and NVIDIA · AdGuard Home · nginx and the LAN proxy · ntfy · Grafana and
-Prometheus · Tailscale, OpenSSH, systemd, iptables · sops-nix ·
-Gramps Web images · hasala · claude-code · a NixOS
-release upgrade (26.05 -> 26.11)
+WATCHED or MAJOR: where its changes are written down, what breaks, and how
+to check it after the test.
 
 ## Finding the history of one package or module
 
-Packages and modules that we take from nixpkgs change only through nixpkgs
-commits. List the commits between the old and new lock date that touch one
-path (no nixpkgs clone needed):
+List the nixpkgs commits between the old and new lock date that touch one
+path (no clone needed):
 
 ```sh
 gh api "repos/NixOS/nixpkgs/commits?sha=<new rev>&since=<old date>T00:00:00Z&path=<path>" \
@@ -29,27 +22,27 @@ Useful paths: `pkgs/by-name/im/immich/package.nix`,
 `nixos/modules/services/misc/ntfy-sh.nix`,
 `pkgs/os-specific/linux/nvidia-x11/default.nix`. Use the `nixpkgs-unstable`
 rev for Immich (its package and module come from there, see `flake.nix`) and
-the `nixpkgs` rev for everything else. Confirm a path exists before relying
-on an empty answer; files move.
+the `nixpkgs` rev for everything else. Files move: confirm a path exists
+before relying on an empty answer.
 
-A commit message with `BREAKING`, `rename`, `remove`, `deprecate`, or a
-`mkRenamedOptionModule` in the diff is worth opening.
+Open any commit whose message has `BREAKING`, `rename`, `remove` or
+`deprecate`, or whose diff has a `mkRenamedOptionModule`.
 
 ## nixpkgs itself (`nixos-26.05`)
 
-The weekly bump moves within the release branch, so changes are backports:
-security fixes and minor versions. Breaking changes are rare but not zero.
-The release notes are in the source:
+The weekly bump moves within the release branch: backports, security fixes
+and minor versions. Breaking changes are rare but not zero. The release
+notes are in the source:
 `$(nix eval --raw .#nixosConfigurations.kakapo.pkgs.path)/nixos/doc/manual/release-notes/rl-2605.section.md`.
-Look at `evaluation warning:` lines from the build: a new warning about an
-option we set means the module changed under us.
+A new `evaluation warning:` line from the build about an option we set means
+the module changed under us.
 
 The lock never moves to a new release by itself: `flake.nix` names the
 `nixos-26.05` branch. Moving to 26.11 is its own change (see the end).
 
 ## Immich (nixpkgs-unstable)
 
-Highest data risk on the host. It holds Saleh's photo library.
+Highest data risk on the host: it holds Saleh's photo library.
 
 - Read: <https://github.com/immich-app/immich/releases>, every release from
   the running version (`curl -s 127.0.0.1:2283/api/server/version`) to the
@@ -59,24 +52,23 @@ Highest data risk on the host. It holds Saleh's photo library.
   support downgrade, so anything that later starts the old Immich (a
   rollback, 04:00, another agent's master-based test) leaves an old server
   on a new schema. Patch releases can carry migrations too, so check every
-  version change, patch included (empty output = no migration):
+  version change (empty output = no migration):
 
   ```sh
   m() { gh api "repos/immich-app/immich/contents/server/src/schema/migrations?ref=v$1" --jq '.[].name' | sort; }
   comm -13 <(m <old>) <(m <new>)
   ```
 
-  (The compare API caps at 300 files, so do not grep its file list.) Any
-  output makes it a *migrating change*; SKILL.md step 6 says how to handle
-  one.
+  Do not grep the compare API's file list: it caps at 300 files. Any output
+  makes it a *migrating change*; SKILL.md step 6 says how to handle one.
 - Backups: Immich dumps its DB nightly at 02:00 to
   `/mnt/media/immich/backups` (mode 0700, owner `immich`; names carry the
   Immich and PostgreSQL versions, e.g. `...-v3.3.3-pg17.11.sql.gz`). The
-  02:00 dump always runs before the 04:00 upgrade, so it covers a normal
-  merge. For a test now, it is valid only if its version tag matches the
-  running Immich and nothing important was uploaded since. For a fresh dump,
-  ask Saleh to run **Database Backup** in Immich Administration > Jobs; do
-  not improvise a `pg_dump`. Confirm it with
+  02:00 dump runs before the 04:00 upgrade, so it covers a normal merge.
+  For a test now, it is valid only if its version tag matches the running
+  Immich and nothing important was uploaded since. For a fresh dump, ask
+  Saleh to run **Database Backup** in Immich Administration > Jobs; do not
+  improvise a `pg_dump`. Confirm it with
   `sudo ls -lt /mnt/media/immich/backups | head -3`. A restore needs the same
   PostgreSQL major and VectorChord version as the dump.
 - The dump and the originals are on the same media SSD, and the repo has no
@@ -86,12 +78,12 @@ Highest data risk on the host. It holds Saleh's photo library.
   `nixos/modules/services/web-apps/immich.nix` history as above.
 - The swap to the unstable module is temporary (dropped on 26.11, see
   `flake.nix`). If the unstable module starts to need something only newer
-  nixpkgs provides, the build or eval fails; that is a blocker for this
-  bump, fixed in its own PR.
-- Check after the test: version endpoint reports the new version;
+  nixpkgs provides, the build or eval fails: a blocker for this bump, fixed
+  in its own PR.
+- Check after the test: the version endpoint reports the new version;
   `journalctl -u immich-server -b` shows migrations finished, no errors;
-  `immich-machine-learning` active; open `https://photos.salehtl.com` loads
-  (or `curl -s 127.0.0.1:2283/api/server/ping` returns `pong`).
+  `immich-machine-learning` active; `https://photos.salehtl.com` loads (or
+  `curl -s 127.0.0.1:2283/api/server/ping` returns `pong`).
 
 ## PostgreSQL and its extensions (Immich's `services.postgresql`)
 
@@ -100,7 +92,7 @@ Highest data risk on the host. It holds Saleh's photo library.
   `nix eval --raw .#nixosConfigurations.kakapo.config.services.postgresql.package.version`.
 - 17.x to 17.y: routine. Read the release notes
   (<https://www.postgresql.org/docs/release/>) only for "a reindex is
-  needed" notes, which happen in some minors.
+  needed" notes, which some minors have.
 - A major change (17 to 18) on this service: **Do not merge**. The data
   directory `/var/lib/postgresql/17` needs a planned `pg_upgrade` (NixOS
   manual, "Upgrading PostgreSQL"), with a dump first. It can only appear if
@@ -127,15 +119,15 @@ Highest data risk on the host. It holds Saleh's photo library.
   broken bump if the logs show only the mismatch, but guarded-test has then
   rolled back the whole system, so nothing else in the bump was tested on
   the host. See SKILL.md step 6.
-- A driver build failure against a new kernel is a classic weekly-bump
+- A driver build failure against a new kernel is a common weekly-bump
   failure (the driver is unfree, never cached, compiled in CI). See
   `failing-bumps.md`.
-- Nothing on the host uses CUDA (CLAUDE.md, hardware bullet), so only the
-  exporter and persistenced depend on the driver.
+- Nothing on the host uses CUDA (CLAUDE.md, "Conventions worth
+  preserving"), so only the exporter and persistenced depend on the driver.
 
 ## AdGuard Home
 
-The house's only resolver. A broken AdGuard is an outage for every device.
+The house's only resolver: a broken AdGuard is an outage for every device.
 
 - Read: <https://github.com/AdguardTeam/AdGuardHome/releases>. Look for a
   `schema_version` change in its YAML config, removed settings, and changes to
@@ -144,8 +136,8 @@ The house's only resolver. A broken AdGuard is an outage for every device.
   module's settings into its own file. A new schema migrates that file
   in place on start (one way).
 - `guarded-test.sh` rolls back if DNS stops answering. Also check filtering
-  still works and the rate limit is still per client (CLAUDE.md, AdGuard
-  bullet).
+  still works and the rate limit is still per client (header of
+  `modules/services/adguard.nix`).
 
 ## nginx and the LAN proxy
 
@@ -202,11 +194,10 @@ frontend's releases. Confirm the digest belongs to the tag:
 ## hasala
 
 Its rev is pinned in `flake.nix`; the weekly bump never moves it. Release
-PRs come from `hasala-release.yml` and auto-merge unless labelled
-`needs-review` (a migration or module change). For a `needs-review` PR,
-read the migration files in the hasala compare, confirm they are
-expand-only, and confirm `hasala-backup-premigrate` covers them (CLAUDE.md
-"Release a new hasala version"). After the test check
+PRs come from `hasala-release.yml` (CLAUDE.md, "Release a new hasala version
+to QA"). For a `needs-review` PR (a migration or module change), read the
+migration files in the hasala compare, confirm they are expand-only, and
+confirm `hasala-backup-premigrate` covers them. After the test check
 `sudo hasala-admin version`, `systemctl is-active hasalad hasala-postgresql`,
 `curl -s 127.0.0.1:9473/healthz` (expect `"db":"ok"`) and
 `sudo curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8471/api/v1/healthz`

@@ -107,12 +107,18 @@ jobs:
       # clean worktree of the commit this run checked out (the bump above is
       # only in the working tree). master's own CI already built it, so this
       # is mostly cache hits.
+      #
+      # actions/checkout clones with depth 1, and Nix refuses a clean shallow
+      # Git tree as a flake ("shallow Git repository, so 'revCount' is not
+      # available"); every run failed here from 2026-11-23 to 2026-11-27.
+      # `?shallow=1` tells Nix to accept it. The flake reads no rev or
+      # revCount, so the result is the same system as master's own build.
       - name: Build master as the review baseline
         if: steps.bump.outputs.changed == 'true'
         run: |
           git worktree add --detach "$RUNNER_TEMP/base" HEAD
           nix build --no-link --print-out-paths \
-            "$RUNNER_TEMP/base#nixosConfigurations.kakapo.config.system.build.toplevel" > "$RUNNER_TEMP/old-system"
+            "git+file://$RUNNER_TEMP/base?shallow=1#nixosConfigurations.kakapo.config.system.build.toplevel" > "$RUNNER_TEMP/old-system"
 
       # GitHub will not run `check` on the pull request opened below: anything
       # done with the default GITHUB_TOKEN does not trigger further workflows.

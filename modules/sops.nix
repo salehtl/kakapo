@@ -91,8 +91,7 @@ in
 
     # Hasala's QA backend. A secret is declared only while the feature that
     # reads it is on (modules/services/hasala.nix), so restartUnits never
-    # names a unit that does not exist. In the file but not declared:
-    # asc_key_p8 (the operator console's TestFlight, a later PR).
+    # names a unit that does not exist.
     secrets."hasala/auth_key" = hasalaSecret "auth_key" [ "hasalad.service" ];
     secrets."hasala/salt_key" = hasalaSecret "salt_key" [ "hasalad.service" ];
     secrets."hasala/email_api_token" = lib.mkIf (hasala.email.cloudflareAccountId != null) (

@@ -23,7 +23,7 @@
     # is a PR that changes this rev (.github/workflows/hasala-release.yml).
     # Deliberately NO `follows`: the host runs exactly the closure hasala's CI
     # built and tested.
-    hasala.url = "github:Hasala/hasala/a41cae35f6b7d11fbcae97812c5166f2d91b3aed";
+    hasala.url = "github:Hasala/hasala/f549e194baa55aefa71b0986c8aa84f46f9c93b4";
     # midstudy (modules/services/midstudy.nix), for its NixOS module. Pinned to
     # a commit like hasala. Deliberately NO `follows`: its CUDA torch comes
     # from its own pinned nixpkgs, so a nixpkgs bump here never rebuilds the

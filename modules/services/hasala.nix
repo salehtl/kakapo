@@ -32,8 +32,8 @@
 #           only Saleh's own devices: the threat and the controls are under
 #           "Identity" in the header of modules/services/lan-proxy.nix.
 # Secrets:  secrets/hasala.yaml (modules/sops.nix), all through LoadCredential=.
-# Ports:    127.0.0.1 only: API 8471, metrics 9471, cloudflared metrics 9472,
-#           console 8472, console healthz 9473.
+# Ports:    127.0.0.1 only: API 8471, cloudflared metrics 9472, console 8472,
+#           console healthz and /metrics 9473.
 #
 # Never bind 127.0.0.1:8471 from anything else: the tunnel routes it publicly
 # even while hasalad is down. No other app may be added to the hasala-qa
@@ -118,12 +118,8 @@ in
       # The only user the kernel rule lets connect to the console port.
       restrictToUser = config.services.nginx.user;
     };
-    # TestFlight is manual until the App Store Connect server key is in sops
-    # (hasala/asc_key_p8; then set asc.enable, keyFile, keyId, keyKind = "team"
-    # and issuerId, keeping refusedKeyIds).
-    # The Mac's App Store Connect upload key id (not secret). It must never run
-    # on this host (M20, PQ-16).
-    asc.refusedKeyIds = [ "275JBFHQ4L" ];
+    # TestFlight is manual: the operator adds each invited tester by hand
+    # (hasala's docs/decisions/testflight-manual.md; the module has no asc.*).
 
     # Gmail's mailbox link (M8a): the iOS client id (not secret, it ships in the
     # app) and the route key, both or neither. Without gmail.* the app fetches
@@ -197,7 +193,6 @@ in
     {
       assertion = lib.all (p: !(lib.elem p taken)) [
         cfg.listen.port
-        cfg.metrics.port
         cfg.tunnel.metricsPort
         cfg.console.port
         cfg.console.metricsPort
